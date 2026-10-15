@@ -70,8 +70,8 @@ function patternsOf(spec: LibrarySpec) {
   const name = escapeRegExp(spec.name);
   const component = `${name}\\/${escapeRegExp(spec.srcDir)}\\/`;
   return {
-    /** A computed `import()` argument that starts with the package name. */
-    argument: new RegExp(`\\s*["'\`]${name}\\b`, "y"),
+    /** A computed `import()`'s arguments that name the package. */
+    argument: new RegExp(`["'\`]${name}\\b`),
     directComponentPath: new RegExp(`^${component}(.+\\.svelte)$`),
     contextKey: new RegExp(
       `(["'\`])(${escapeRegExp(spec.contextKeyPrefix)}[^"'\`\\s]+)\\1`,

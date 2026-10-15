@@ -799,6 +799,24 @@ export const red = () => button({ color: "red" });`,
       }),
     ],
     [
+      // Lexed as a script, the apostrophe and the URL would hide the import.
+      "a component imports its module in markup",
+      tables("<Lazy />", "", {
+        "Lazy.svelte": `<script>
+  import Button from "./Button.svelte";
+</script>
+<p>It's at https://example.com</p>
+<Button color="red" />{#await import("./theme.js") then { button }}<i class={button({ color: "green" })}></i>{/await}`,
+        "index.js": `${TABLES_LIBRARY["index.js"]}export { default as Lazy } from "./Lazy.svelte";\n`,
+      }),
+    ],
+    [
+      "a script module imports a module it computes",
+      tables('<Button color="red" />', "", {
+        "load.js": `export const load = (name) => import(\`./\${name}.js\`);`,
+      }),
+    ],
+    [
       "a component hands it on",
       tables("<Hands />", "", {
         "Hands.svelte": `<script>
@@ -814,6 +832,17 @@ export const red = () => button({ color: "red" });`,
     expect(await theme(shape)).toContain("bg-green");
     const { before, after } = await renderSpecialized(shape, { unwrap: true });
     expect(after).toBe(before);
+  });
+
+  test("read past an import in a comment or a string", async () => {
+    const code = await theme(
+      tables('<Button color="red" />', "", {
+        "load.js": `// import(\`./\${name}.js\`)
+export const help = "require(name) loads it";`,
+      }),
+    );
+    expect(code).toContain("bg-red");
+    expect(code).not.toContain("bg-green");
   });
 
   test("follow a table re-exported through an index", async () => {
