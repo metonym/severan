@@ -1,4 +1,5 @@
 import { lexImportsExports } from "sveast/lexer";
+import { scriptDynamicImports } from "./dynamic-imports";
 import {
   type LibraryImport,
   type LibrarySpec,
@@ -20,8 +21,6 @@ export type ModuleGraph = {
   ): Promise<{ id: string } | null | undefined>;
 };
 
-/** A literal `import("…")`, which the lexer doesn't read. */
-const DYNAMIC_IMPORT = /\bimport\s*\(\s*(["'`])([^"'`$]+)\1\s*\)/g;
 /** Specifiers that can't be an alias of the library. */
 const NOT_AN_ALIAS = /^(?:\.|\/|\0|svelte(?:\/|$))/;
 
@@ -30,7 +29,9 @@ function specifiersOf(code: string): Set<string> {
   for (const statement of lexImportsExports(code)) {
     if (statement.source) specifiers.add(statement.source.value);
   }
-  for (const match of code.matchAll(DYNAMIC_IMPORT)) specifiers.add(match[2]);
+  for (const { kind, source } of scriptDynamicImports(code)) {
+    if (kind !== "glob" && source !== null) specifiers.add(source);
+  }
   return specifiers;
 }
 

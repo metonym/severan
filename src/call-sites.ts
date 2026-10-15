@@ -4,6 +4,12 @@ import { type AST, type Expression, forEachChild, locate } from "sveast/walk";
 import { forEachNode, type Node, parse } from "./ast";
 import { buildComponentModel, type ComponentModel } from "./component-model";
 import {
+  componentDynamicImports,
+  type DynamicImport,
+  scriptDynamicImports,
+  textDynamicImports,
+} from "./dynamic-imports";
+import {
   bindEach,
   createScope,
   evaluate,
@@ -142,28 +148,24 @@ function resolveAppImport(
   return keys.length > 0 ? { keys, exact: false } : undefined;
 }
 
-const DYNAMIC_IMPORT = /\b(?:import|require)\s*\(/g;
-/** The literal argument of an `import(`, read from where it ends. */
-const LITERAL_IMPORT = /\s*(["'`])([^"'`$]+)\1\s*\)/y;
-const IMPORT_META_GLOB = /\bimport\.meta\.glob\b/;
-
-/** The lexer skips `import()`, `require()`, `import.meta.glob`: all open. */
+/** What `lexImportsExports` doesn't read: open, unless a literal names it. */
 function readDynamicImports(
+  calls: readonly DynamicImport[],
   code: string,
   library: Library,
   bindings: ImportBindings,
   app: AppImports | undefined,
 ): void {
-  if (!code.includes("import") && !code.includes("require")) return;
-  if (IMPORT_META_GLOB.test(code)) bindings.openApps = true;
-  for (const match of code.matchAll(DYNAMIC_IMPORT)) {
-    const start = match.index + match[0].length;
-    LITERAL_IMPORT.lastIndex = start;
-    const source = LITERAL_IMPORT.exec(code)?.[2];
-    if (source === undefined) {
+  for (const { kind, source, start, end } of calls) {
+    if (kind === "glob") {
       bindings.openApps = true;
-      library.patterns.argument.lastIndex = start;
-      if (library.patterns.argument.test(code)) bindings.openAll = true;
+      continue;
+    }
+    if (source === null) {
+      bindings.openApps = true;
+      if (library.patterns.argument.test(code.slice(start, end))) {
+        bindings.openAll = true;
+      }
       continue;
     }
     if (source === library.name) {
@@ -362,7 +364,7 @@ export function collectScriptUsage(
   const bindings = newBindings();
   const app = apps && { from: file, apps };
   readImports(code, library, bindings, app);
-  readDynamicImports(code, library, bindings, app);
+  readDynamicImports(scriptDynamicImports(code), code, library, bindings, app);
   return {
     sites: [
       ...bindings.components.values(),
@@ -392,7 +394,7 @@ export function collectImportedUsage(
 ): ModuleUsage {
   const bindings = newBindings();
   const app = apps && { from: file, apps };
-  readDynamicImports(code, library, bindings, app);
+  readDynamicImports(textDynamicImports(code), code, library, bindings, app);
   const values = new Set<string>();
   const usage: ModuleUsage = {
     sites: bindings.dynamic.map((key) => openSite(key, file, reason)),
@@ -653,7 +655,18 @@ export function collectSvelteUsage(
     }
   }
   // The markup too: `{#await import("…")}`.
-  readDynamicImports(code, library, bindings, app);
+  readDynamicImports(
+    componentDynamicImports(
+      code,
+      [ast.module, ast.instance].flatMap((script) =>
+        script ? [script.content] : [],
+      ),
+    ),
+    code,
+    library,
+    bindings,
+    app,
+  );
 
   const usage: ModuleUsage = {
     sites: [

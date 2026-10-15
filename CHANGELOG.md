@@ -46,6 +46,11 @@
   a component's root: unwrapping an `<svg>` into a block, or removing the
   branch with a fragment's only HTML element, could make it SVG and drop
   the whitespace between its nodes (flowbite-svelte's `BreadcrumbItem`).
+- `import()`, `require()` and `import.meta.glob()` in scripts are read
+  with sveast's lexer: one in a comment or a string no longer opens the
+  app's components or keeps the library's tailwind-variants tables whole.
+  An `import.meta.glob()` in the library keeps every table, as a computed
+  `import()` does.
 
 ## 0.2.0
 

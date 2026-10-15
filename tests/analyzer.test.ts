@@ -279,6 +279,19 @@ import Tile from "carbon-components-svelte/src/Tile/Tile.svelte";
         "/app/lib.cjs",
       ),
     ).toEqual([[MODAL, true]]);
+    // Markup isn't a script: an apostrophe or a URL before it hides nothing.
+    expect(
+      sites(
+        `<p>It's at https://example.com</p>\n{#await import("carbon-components-svelte/src/Modal/Modal.svelte") then M}<M.default />{/await}`,
+      ),
+    ).toEqual([[MODAL, true]]);
+    // A script's comments and strings aren't calls.
+    expect(
+      sites(
+        `// import("carbon-components-svelte/src/Modal/Modal.svelte")\nexport const help = "require('carbon-components-svelte/src/Modal/Modal.svelte')";`,
+        "/app/lib.js",
+      ),
+    ).toEqual([]);
 
     // A path computed from Carbon's name may be any component; another isn't.
     const computed = (path: string) =>
@@ -291,6 +304,13 @@ import Tile from "carbon-components-svelte/src/Tile/Tile.svelte";
       computed(`carbon-components-svelte/src/\${name}/\${name}.svelte`),
     ).toBe(true);
     expect(computed(`./locales/\${name}.js`)).toBe(false);
+    expect(
+      collectSourceUsage(
+        `${IMPORT_BUTTON}\n// import(\`carbon-components-svelte/src/\${name}/\${name}.svelte\`)`,
+        "/app/lib.js",
+        carbon,
+      ).openAll,
+    ).toBe(false);
   });
 
   test("a `.svelte` file that doesn't parse falls back to its imports", () => {

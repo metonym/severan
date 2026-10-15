@@ -17,6 +17,10 @@ import {
   loadScriptModel,
   propertyName,
 } from "./component-model";
+import {
+  componentDynamicImports,
+  scriptDynamicImports,
+} from "./dynamic-imports";
 import { evaluate, type Scope } from "./evaluate";
 import { createExportResolver } from "./exports";
 import type { Library } from "./library";
@@ -410,12 +414,13 @@ export async function scanVariantTables(library: Library): Promise<Scan> {
       }
     }
   }
-  // The lexer skips `import()` and `require()`: what they load is read whole.
+  // What `import()`, `require()` and `import.meta.glob()` load is read whole.
   for (const [i, file] of files.entries()) {
-    for (const match of codes[i].matchAll(DYNAMIC_IMPORT)) {
-      LITERAL_ARGUMENT.lastIndex = match.index + match[0].length;
-      const source = LITERAL_ARGUMENT.exec(codes[i])?.[2];
-      if (source === undefined) {
+    const calls = file.endsWith(".svelte")
+      ? componentDynamicImports(codes[i])
+      : scriptDynamicImports(codes[i]);
+    for (const { source } of calls) {
+      if (source === null) {
         scan.open ??= `${file} imports a module it computes`;
         continue;
       }
@@ -430,10 +435,6 @@ export async function scanVariantTables(library: Library): Promise<Scan> {
   }
   return scan;
 }
-
-const DYNAMIC_IMPORT = /\b(?:import|require)\s*\(/g;
-/** A literal argument, read from just after the `(`. */
-const LITERAL_ARGUMENT = /\s*(["'`])([^"'`$]+)\1\s*\)/y;
 
 /**
  * Why a script module may render a component no call site shows (it mounts
