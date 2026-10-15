@@ -17,6 +17,9 @@
   60.9% smaller, svelte-5-ui-lib 71.7%, svelte-ux 24.9%.
 - Builds fail when a module outside the library imports a script module
   whose tables were rewritten (through an alias).
+- A component picked from a constant object with
+  `<svelte:component this={icons[kind]}>`: only the entries `kind` can
+  select render, and the others leave the object and the bundle.
 
 **Fixes**
 

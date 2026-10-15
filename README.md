@@ -270,7 +270,7 @@ How much it saves depends on how a library is written. Gzipped client JS of a re
 | Library | Style | Smaller by |
 |:---|:---|:---|
 | flowbite-svelte | Tailwind variants | 37.2% |
-| carbon-components-svelte | branches on props | 23.6% |
+| carbon-components-svelte | branches on props | 24.4% |
 | svelte-5-ui-lib | Tailwind variants | 18.7% |
 | @sveltestrap/sveltestrap | branches on props | 17.6% |
 | svelte-ux | Tailwind | 4.7% |

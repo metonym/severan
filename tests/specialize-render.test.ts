@@ -893,3 +893,74 @@ describe("namespaces Svelte infers", () => {
     expect(after).toBe(before);
   });
 });
+
+// `<svelte:component this={icons[kind]}>` over `const icons = { … }`: only
+// the entries `kind` can select render, and the rest go from the map.
+describe("component maps", () => {
+  const ICONS = `import A from "./icons/A.svelte";
+  import B from "./icons/B.svelte";
+  import C from "./icons/C.svelte";
+  const icons = { a: A, b: B, "c-c": C };`;
+  const lib = {
+    "icons/A.svelte": "<b>A</b>",
+    "icons/B.svelte": "<b>B</b>",
+    "icons/C.svelte": "<b>C</b>",
+    "Icon.svelte": `<script>\n  export let kind = "a";\n  ${ICONS}\n</script>\n<svelte:component this={icons[kind]} />`,
+    "IconRunes.svelte": `<script>\n  let { kind = "a" } = $props();\n  ${ICONS}\n</script>\n<svelte:component this={icons[kind]} />`,
+    "Leaks.svelte": `<script>\n  export let kind = "a";\n  ${ICONS}\n  $: count = Object.keys(icons).length;\n</script>\n<svelte:component this={icons[kind]} />{count}`,
+    "EachIcon.svelte": `<script>\n  export let kinds = ["a"];\n  ${ICONS}\n</script>\n{#each kinds as k}<svelte:component this={icons[k]} />{/each}`,
+    "Dotted.svelte": `<script>\n  export let kind = "a";\n  ${ICONS}\n</script>\n<svelte:component this={icons[kind]} /><svelte:component this={icons.b} />`,
+  };
+  // `App`'s own props: no call site sets them.
+  const SCRIPT = 'export let k = "b";';
+  const APPS: Record<string, string> = {
+    "a known key": '<Icon kind="b" />',
+    "the default key": "<Icon />",
+    "a key with no entry": '<Icon kind="zzz" />',
+    "a key it can't read": "<Icon kind={k} />",
+    runes: '<IconRunes kind="c-c" />',
+    "a map read other than by `this`": '<Leaks kind="b" />',
+    "a key from `{#each}`": "<EachIcon kinds={['b', 'c-c']} />",
+    "a member read by name": '<Dotted kind="a" />',
+  };
+  const cases = Object.keys(APPS).flatMap((name): [string, boolean][] => [
+    [name, false],
+    [name, true],
+  ]);
+  test.each(cases)(
+    "%s renders as the original (unwrap: %p)",
+    async (name, unwrap) => {
+      const shape = { lib, app: appRendering(APPS[name], SCRIPT) };
+      const { before, after } = await renderSpecialized(shape, { unwrap });
+      expect(after).toBe(before);
+    },
+  );
+
+  const mapOf = async (markup: string, file: string) =>
+    (await specializedLibrary({ lib, app: appRendering(markup, SCRIPT) }))[
+      file
+    ] ?? "";
+
+  test.each([
+    ['<Icon kind="b" />', "Icon.svelte", "const icons = { b: B }"],
+    ["<Icon />", "Icon.svelte", "const icons = { a: A }"],
+    ['<Icon kind="zzz" />', "Icon.svelte", "const icons = {}"],
+    [
+      '<IconRunes kind="c-c" />',
+      "IconRunes.svelte",
+      'const icons = { "c-c": C }',
+    ],
+    ['<Dotted kind="a" />', "Dotted.svelte", "const icons = { a: A, b: B }"],
+  ])("%s keeps only what it selects", async (markup, file, map) => {
+    expect(await mapOf(markup, file)).toContain(map);
+  });
+
+  test.each([
+    ["<Icon kind={k} />", "Icon.svelte"],
+    ['<Leaks kind="b" />', "Leaks.svelte"],
+    ["<EachIcon kinds={['b']} />", "EachIcon.svelte"],
+  ])("%s keeps every entry", async (markup, file) => {
+    const code = await mapOf(markup, file);
+    expect(code === "" || code.includes('{ a: A, b: B, "c-c": C }')).toBe(true);
+  });
+});
