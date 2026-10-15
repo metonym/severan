@@ -1,0 +1,9 @@
+{
+  "name": "bits-ui",
+  "srcDir": "dist",
+  "barrel": "index.js",
+  "componentPackages": [],
+  "contextKeyPrefix": "bits-ui:",
+  "label": "bits-ui",
+  "tool": "severan"
+}

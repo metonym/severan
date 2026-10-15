@@ -1,0 +1,9 @@
+{
+  "name": "@skeletonlabs/skeleton-svelte",
+  "srcDir": "dist",
+  "barrel": "index.js",
+  "componentPackages": [],
+  "contextKeyPrefix": "skeleton:",
+  "label": "Skeleton",
+  "tool": "severan"
+}

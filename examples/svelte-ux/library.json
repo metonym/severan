@@ -1,0 +1,9 @@
+{
+  "name": "svelte-ux",
+  "srcDir": "dist",
+  "barrel": "index.js",
+  "componentPackages": [],
+  "contextKeyPrefix": "svelteux:",
+  "label": "svelte-ux",
+  "tool": "severan"
+}

@@ -265,16 +265,16 @@ On real libraries, each component with every prop value it compares against plus
 | bits-ui | 159 | 859 | 0 |
 | @skeletonlabs/skeleton-svelte | 131 | 327 | 0 |
 
-How much it saves depends on how a library is written. Gzipped client JS on a realistic page:
+How much it saves depends on how a library is written. Gzipped client JS of a realistic page built with Vite ([`examples/`](examples/README.md)):
 
 | Library | Style | Smaller by |
 |:---|:---|:---|
-| carbon-components-svelte | branches on props | 16.5% |
-| @sveltestrap/sveltestrap | branches on props | 15.0% |
-| flowbite-svelte | Tailwind variants | 30.4% |
-| svelte-5-ui-lib | Tailwind variants | 16.1% |
-| svelte-ux | Tailwind | 4.0% |
-| bits-ui | headless, state in classes | 1.8% |
+| flowbite-svelte | Tailwind variants | 37.2% |
+| carbon-components-svelte | branches on props | 23.6% |
+| svelte-5-ui-lib | Tailwind variants | 18.7% |
+| @sveltestrap/sveltestrap | branches on props | 17.6% |
+| svelte-ux | Tailwind | 4.7% |
+| bits-ui | headless, state in classes | 2.1% |
 | @skeletonlabs/skeleton-svelte | headless, state machines | 0% |
 
 Libraries whose markup branches on their props gain the most, and so do those whose tailwind-variants tables hold every variant's classes. Headless libraries that keep their state in classes or hand their props to a state machine leave little to fold.
@@ -283,9 +283,9 @@ Tailwind's CSS for the same pages (v4, with each library's plugin), gzipped, sca
 
 | Library | Smaller by |
 |:---|:---|
-| flowbite-svelte | 61.1% |
-| svelte-5-ui-lib | 71.8% |
-| svelte-ux | 26.0% |
+| svelte-5-ui-lib | 71.7% |
+| flowbite-svelte | 60.9% |
+| svelte-ux | 24.9% |
 
 ## Limitations
 

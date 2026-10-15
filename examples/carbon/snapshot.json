@@ -1,0 +1,40 @@
+{
+  "library": "carbon-components-svelte@0.113.1",
+  "rewritten": {
+    "components": 86,
+    "edits": 1486,
+    "tables": {
+      "pruned": 0,
+      "emptied": 0,
+      "variantKeys": 0,
+      "compoundVariants": 0
+    }
+  },
+  "js": {
+    "original": {
+      "bytes": 379048,
+      "gzip": 107882
+    },
+    "severan": {
+      "bytes": 273792,
+      "gzip": 82403
+    },
+    "gzipSmallerBy": "23.6%"
+  },
+  "css": {
+    "original": {
+      "bytes": 557390,
+      "gzip": 65796
+    },
+    "severan": {
+      "bytes": 557390,
+      "gzip": 65796
+    },
+    "gzipSmallerBy": "0.0%"
+  },
+  "html": {
+    "identical": true,
+    "bytes": 26372,
+    "sha1": "1668d385f849aaed9d8fd38e61c84751db3896f8"
+  }
+}

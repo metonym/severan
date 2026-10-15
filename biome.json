@@ -7,7 +7,7 @@
     "defaultBranch": "master"
   },
   "files": {
-    "includes": ["**", "!!**/dist", "!bench/fixtures"]
+    "includes": ["**", "!!**/dist", "!bench/fixtures", "!examples/*/src"]
   },
   "formatter": {
     "indentStyle": "space"

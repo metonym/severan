@@ -1,0 +1,40 @@
+{
+  "library": "bits-ui@2.19.5",
+  "rewritten": {
+    "components": 29,
+    "edits": 88,
+    "tables": {
+      "pruned": 0,
+      "emptied": 0,
+      "variantKeys": 0,
+      "compoundVariants": 0
+    }
+  },
+  "js": {
+    "original": {
+      "bytes": 109065,
+      "gzip": 30728
+    },
+    "severan": {
+      "bytes": 105564,
+      "gzip": 30094
+    },
+    "gzipSmallerBy": "2.1%"
+  },
+  "css": {
+    "original": {
+      "bytes": 1,
+      "gzip": 21
+    },
+    "severan": {
+      "bytes": 1,
+      "gzip": 21
+    },
+    "gzipSmallerBy": "0.0%"
+  },
+  "html": {
+    "identical": true,
+    "bytes": 4383,
+    "sha1": "a96f0c6ddb9a720ae765f4d809b3c97457939f86"
+  }
+}

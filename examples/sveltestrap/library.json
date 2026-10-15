@@ -1,0 +1,9 @@
+{
+  "name": "@sveltestrap/sveltestrap",
+  "srcDir": "dist",
+  "barrel": "index.js",
+  "componentPackages": [],
+  "contextKeyPrefix": "sveltestrap:",
+  "label": "Sveltestrap",
+  "tool": "severan"
+}

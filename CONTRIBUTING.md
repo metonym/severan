@@ -49,6 +49,7 @@ A build runs in three steps: read every call site, work out what can render, the
 | `tests/mapped-text.test.ts` | Source maps for rewritten components |
 | `tests/vite.test.ts` | The Vite plugin on real Vite builds: rewriting, rebuilds when `content` changes, `report`, and the module-graph checks (modules outside `content`, aliases, virtual modules) |
 | `tests/webpack.test.ts` | The webpack plugin on real webpack builds: rewriting, production only, wrappers, and the module-graph checks |
+| `scripts/examples.ts` | `bun run examples`: the apps in [`examples/`](examples/README.md), real libraries built with Vite with and without severan; fails when their rendered HTML differs or their sizes move from `snapshot.json` (`--update` writes it) |
 | `scripts/test-package.ts` | `bun run test:package`: packs `dist/`, installs it into a scratch project, specializes a library in Node, loads both plugins, and type-checks a consumer |
 
 carbon-components-svelte is the reference library, configured in [`tests/helpers/carbon.ts`](tests/helpers/carbon.ts).
@@ -79,6 +80,6 @@ Commit first, then run `bun run bench:ab` against the commit before your change 
 ## Before you finish
 
 - [ ] `bun run lint`, `bun run typecheck`, `bun run knip`, `bun run test` and `bun run test:package` pass.
-- [ ] `src/` changes: `bun run bench:ab` shows no confirmed regression.
+- [ ] `src/` changes: `bun run bench:ab` shows no confirmed regression, and `bun run examples` passes (or its snapshots are updated in the same commit).
 - [ ] Changes to what the analysis removes: a render test covers them.
 - [ ] The README and this guide still describe what the code does.
