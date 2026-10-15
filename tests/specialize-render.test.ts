@@ -443,8 +443,12 @@ export { Card } from "./card.js";
 export * from "./Sizes.svelte";
 export { cn, pick } from "./helpers.js";
 export { default as Uses } from "./Uses.svelte";
-export { Listed } from "./listed.js";`,
+export { Listed } from "./listed.js";
+export { Either } from "./either.js";`,
   "parts/index.js": 'export { default as Inner } from "./Inner.svelte";',
+  "either.js": `import Outer from "./Outer.svelte";
+import Inner from "./parts/Inner.svelte";
+export const Either = globalThis.outer ? Outer : Inner;`,
   "listed.js": `import Inner from "./parts/Inner.svelte";
 export {};
 export { Inner as Listed };`,
@@ -505,6 +509,12 @@ describe("barrels", () => {
       "<Outer /><Card><Card.Item kind='b' /></Card>",
     ),
     "an import exported again": barrel("<Outer /><Listed kind='b' />"),
+    // Each may render `Inner`, which no site names: only `Outer`'s does.
+    "an export it can't tell": barrel("<Outer /><Either kind='b' />"),
+    "a namespace member it can't tell": barrel(
+      "<Outer />{#each ['Inner'] as name}<svelte:component this={L[name]} kind='b' />{/each}",
+      'import * as L from "mylib";',
+    ),
     "the library's own imports of those": barrel("<Uses /><Inner />"),
     "a value it exports": barrel(
       "<Inner kind='b' />{SIZES.length}{cn('x')}",
@@ -546,6 +556,21 @@ describe("barrels", () => {
     );
     expect(sources["parts/Inner.svelte"]).not.toContain("<i>A</i>");
   });
+
+  test.each([
+    ["an export it can't tell", "<Outer /><Either kind='b' />", ""],
+    [
+      "a namespace member it can't tell",
+      "<Outer /><svelte:component this={L[name]} kind='b' />",
+      'import * as L from "mylib"; let { name = "Inner" } = $props();',
+    ],
+  ])(
+    "%s keeps components no site names unchanged",
+    async (_, markup, script) => {
+      const sources = await specializedLibrary(barrel(markup, script));
+      expect(sources["parts/Inner.svelte"] ?? KIND).toBe(KIND);
+    },
+  );
 
   test("an export that may hold a component keeps every one", async () => {
     const sources = await specializedLibrary(
