@@ -13,6 +13,7 @@ import {
   walk,
 } from "sveast/walk";
 import { type Node, parse } from "./ast";
+import { componentMaps, selectedKeys } from "./component-maps";
 import { bindEach, evaluate, isPropsObject, type Scope } from "./evaluate";
 import {
   concat,
@@ -409,6 +410,37 @@ export function specializeComponent(
       case "IfBlock":
         visitIfChain(node, parent);
         return;
+
+      case "ObjectExpression": {
+        // Entries no `this` can select go, and so do their imports.
+        const map = componentMaps(scope.model).get(node);
+        const keys = map && selectedKeys(map, scope);
+        if (
+          !(map && keys) ||
+          [...map.entries.keys()].every((key) => keys.has(key))
+        ) {
+          break;
+        }
+        const kept = [...map.properties]
+          .filter(([key]) => keys.has(key))
+          .map(([, property]) => property);
+        edits.push({
+          start: node.start,
+          end: node.end,
+          print: (rewrite) =>
+            kept.length === 0
+              ? "{}"
+              : concat(
+                  "{ ",
+                  ...kept.flatMap((property, i) => [
+                    ...(i > 0 ? [", "] : []),
+                    rewrite(property.start, property.end),
+                  ]),
+                  " }",
+                ),
+        });
+        return;
+      }
 
       case "EachBlock": {
         if (

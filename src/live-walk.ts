@@ -1,6 +1,7 @@
 import type { Scopes } from "sveast/scope";
 import { type AST, children, type Expression, locate } from "sveast/walk";
 import type { Node } from "./ast";
+import { componentMaps, selectedKeys } from "./component-maps";
 import { UnsupportedComponentError } from "./component-model";
 import {
   bindEach,
@@ -131,6 +132,17 @@ function visit(node: Node, scope: Scope, result: Walk): void {
         throw new UnsupportedComponentError(
           `${scope.model.key} uses \`${node.name}\`, an object of components, as a value`,
         );
+      }
+      return;
+    }
+
+    // Only the entries its `this` reads can select render.
+    case "ObjectExpression": {
+      const map = componentMaps(scope.model).get(node);
+      if (!map) break;
+      const keys = selectedKeys(map, scope);
+      for (const [key, component] of map.entries) {
+        if (!keys || keys.has(key)) result.childSites.push(openSite(component));
       }
       return;
     }
