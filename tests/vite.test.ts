@@ -1,4 +1,10 @@
-import { mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import type { SeveranOptions } from "../src/optimizer";
 import { severan } from "../src/vite";
@@ -14,9 +20,8 @@ type Context = {
 };
 
 type ResolvedPlugin = {
-  apply: string;
   enforce: string;
-  configResolved(config: { root: string }): void;
+  configResolved(config: { root: string; command?: string }): void;
   buildStart(this: Context): Promise<void>;
   load(id: string): { code: string; map: { mappings: string } } | undefined;
   transform(code: string, id: string): void;
@@ -88,10 +93,24 @@ function setUp(
 }
 
 describe("severan/vite", () => {
-  test("runs before Svelte, on production builds only", () => {
-    const plugin = severan(CARBON) as unknown as ResolvedPlugin;
-    expect(plugin.apply).toBe("build");
-    expect(plugin.enforce).toBe("pre");
+  test("runs before Svelte, rewriting production builds only", async () => {
+    const { project, carbon, plugin } = setUp(
+      `<script>${IMPORT_BUTTON}</script>\n<Button kind="tertiary">Save</Button>`,
+    );
+    try {
+      expect(plugin.enforce).toBe("pre");
+      plugin.configResolved({ root: project.root, command: "serve" });
+      await plugin.buildStart.call(context());
+      expect(
+        plugin.load(path.join(carbon, "src/Button/Button.svelte")),
+      ).toBeUndefined();
+      // Without Tailwind, the dev server writes nothing.
+      expect(existsSync(path.join(project.root, "node_modules/.severan"))).toBe(
+        false,
+      );
+    } finally {
+      project.dispose();
+    }
   });
 
   test("serves Carbon components rewritten for the app's props", async () => {
@@ -586,6 +605,7 @@ describe("severan/vite", () => {
       project.dispose();
     }
   });
+
   test("serves tailwind-variants tables rewritten for the components that call them", async () => {
     const project = createFakeProject();
     try {
@@ -623,6 +643,41 @@ describe("severan/vite", () => {
       await expect(plugin.buildEnd.call(graph([app]))).rejects.toThrow(
         TABLE_IMPORTED,
       );
+    } finally {
+      project.dispose();
+    }
+  });
+
+  test.each([
+    ["a build writes it as it renders", "build"],
+    ["the dev server writes it as it is", "serve"],
+  ])("with Tailwind, %s for it to scan", async (_, command) => {
+    const project = createFakeProject();
+    try {
+      installTableLibrary(project.root, { tailwind: true });
+      mkdirSync(path.join(project.root, "src"));
+      writeFileSync(
+        path.join(project.root, "src", "App.svelte"),
+        `<script>import { Button } from "tvlib";</script>\n<Button color="red" />`,
+      );
+      const plugin = severan(TVLIB, {
+        silent: true,
+      }) as unknown as ResolvedPlugin;
+      plugin.configResolved({ root: project.root, command });
+      await plugin.buildStart.call(context());
+      const written = path.join(project.root, "node_modules/.severan/tvlib");
+      const theme = readFileSync(path.join(written, "theme.js"), "utf8");
+      expect(theme).toContain("bg-red");
+      expect(existsSync(path.join(written, "Button.svelte"))).toBe(true);
+      // What can't render: a table key, a component nothing renders.
+      const build = command === "build";
+      expect(theme.includes("bg-green")).toBe(!build);
+      expect(existsSync(path.join(written, "Badge.svelte"))).toBe(!build);
+      expect(
+        plugin.load(
+          path.join(project.root, "node_modules/tvlib/src/theme.js"),
+        ) !== undefined,
+      ).toBe(build);
     } finally {
       project.dispose();
     }

@@ -6,6 +6,7 @@ import {
   DEFAULT_NAMES,
   type PluginNames,
   type SeveranOptions,
+  writeOriginalsForTailwind,
 } from "./optimizer";
 
 /**
@@ -16,7 +17,10 @@ import {
  * too when every call site is in `content`.
  *
  * Runs on production builds only, before Svelte compiles. Rewritten
- * components come with source maps back to their original source.
+ * components come with source maps back to their original source. With
+ * Tailwind installed, every build (the dev server's included) writes what
+ * of the library can render to `node_modules/.severan/<name>`, for Tailwind
+ * to scan instead of the package.
  */
 export function severan(
   library: LibrarySpec,
@@ -25,22 +29,28 @@ export function severan(
   names: PluginNames & { id: string } = { ...DEFAULT_NAMES, id: "severan" },
 ): Plugin {
   let root = process.cwd();
+  // Never rewrite for the dev server: HMR would leave rewritten components
+  // stale, and `buildEnd` needs the complete module graph. Rollup and
+  // Rolldown have no `configResolved`, so there it's up to the config.
+  let serving = false;
   const optimizer = createComponentOptimizer(library, options, names);
 
   return {
     name: names.id,
-    // Never the dev server: HMR would leave rewritten components stale,
-    // and `buildEnd` needs the complete module graph. Rollup and Rolldown
-    // ignore `apply`, so there it's up to the config.
-    apply: "build",
     // Before the Svelte plugin: the first `load` that returns wins, and
     // `transform` must read app modules before a preprocessor changes them.
     // Rollup and Rolldown go by array order instead.
     enforce: "pre",
     configResolved(config) {
       root = config.root;
+      serving = config.command === "serve";
     },
     async buildStart() {
+      if (serving) {
+        const warning = await writeOriginalsForTailwind(library, root, names);
+        if (warning) this.warn(warning);
+        return;
+      }
       const { warning, info, report } = await optimizer.prepare(
         root,
         async (source, importer) =>
@@ -51,12 +61,13 @@ export function severan(
       for (const line of report ?? []) console.log(line);
     },
     load(id) {
-      return optimizer.load(id);
+      return serving ? undefined : optimizer.load(id);
     },
     transform(code, id) {
-      optimizer.check(id, code);
+      if (!serving) optimizer.check(id, code);
     },
     async buildEnd() {
+      if (serving) return;
       for (const edge of await libraryImports(library, this)) {
         optimizer.checkLibraryImport(edge);
       }

@@ -21,6 +21,7 @@ import {
   type SpecializeOptions,
   specializeComponent,
 } from "./specialize";
+import { writeTailwindSources } from "./tailwind-sources";
 import type { CallSite } from "./usage";
 import { errorMessage, isSvelteFile, realpath, stripQuery } from "./util";
 import { formatValue, UNKNOWN } from "./values";
@@ -331,6 +332,8 @@ export type SpecializedComponents = {
   closed: Set<string>;
   /** How many of the app's own components `sources` holds. */
   apps: number;
+  /** Module keys of the library components that can render. */
+  renderable: ReadonlySet<string>;
   /** tailwind-variants tables rewritten (`sources` holds their modules). */
   tables: Pick<RewrittenTables, "pruned" | "emptied" | "keys" | "compounds"> & {
     modules: number;
@@ -442,6 +445,7 @@ export async function specializeFiles(input: {
       return !key || readLibraryImport(library, read.get(importer), key);
     },
     apps: appRewrites.filter((rewrite) => rewrite.edits > 0).length,
+    renderable: result.analysis.liveComponents,
     tables: { ...tables, modules: tables.modules.size },
     report: () =>
       formatSpecializeReport(
@@ -528,4 +532,26 @@ function formatSpecializeReport(
     ...formatCallSites(result, root),
   );
   return lines;
+}
+
+/**
+ * Writes the library as `result` renders it (as it is without one) where
+ * Tailwind's `@source` can point; a warning if it can't.
+ */
+export async function writeLibraryForTailwind(
+  spec: LibrarySpec,
+  root: string,
+  result: SpecializedComponents | undefined,
+  failure: Failure,
+): Promise<string | undefined> {
+  try {
+    await writeTailwindSources(
+      loadLibrary(spec, root),
+      root,
+      result && { sources: result.sources, liveComponents: result.renderable },
+    );
+    return undefined;
+  } catch (error) {
+    return `${libraryPaths(spec).logPrefix} ${failure.feature} could not write ${spec.label} for Tailwind (${errorMessage(error)}); its \`@source\` may be out of date.`;
+  }
 }
