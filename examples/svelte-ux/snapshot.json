@@ -1,0 +1,40 @@
+{
+  "library": "svelte-ux@1.0.11",
+  "rewritten": {
+    "components": 31,
+    "edits": 225,
+    "tables": {
+      "pruned": 0,
+      "emptied": 0,
+      "variantKeys": 0,
+      "compoundVariants": 0
+    }
+  },
+  "js": {
+    "original": {
+      "bytes": 210421,
+      "gzip": 70339
+    },
+    "severan": {
+      "bytes": 199556,
+      "gzip": 67021
+    },
+    "gzipSmallerBy": "4.7%"
+  },
+  "css": {
+    "original": {
+      "bytes": 106814,
+      "gzip": 14287
+    },
+    "severan": {
+      "bytes": 83265,
+      "gzip": 10724
+    },
+    "gzipSmallerBy": "24.9%"
+  },
+  "html": {
+    "identical": true,
+    "bytes": 8709,
+    "sha1": "f0d8a3f3daccaf50900eef1651e4798afc8aa5ee"
+  }
+}

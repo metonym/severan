@@ -1,0 +1,40 @@
+{
+  "library": "@sveltestrap/sveltestrap@7.1.0",
+  "rewritten": {
+    "components": 31,
+    "edits": 225,
+    "tables": {
+      "pruned": 0,
+      "emptied": 0,
+      "variantKeys": 0,
+      "compoundVariants": 0
+    }
+  },
+  "js": {
+    "original": {
+      "bytes": 95936,
+      "gzip": 29823
+    },
+    "severan": {
+      "bytes": 74410,
+      "gzip": 24589
+    },
+    "gzipSmallerBy": "17.6%"
+  },
+  "css": {
+    "original": {
+      "bytes": 230123,
+      "gzip": 30729
+    },
+    "severan": {
+      "bytes": 230123,
+      "gzip": 30729
+    },
+    "gzipSmallerBy": "0.0%"
+  },
+  "html": {
+    "identical": true,
+    "bytes": 2144,
+    "sha1": "4bde0ca80cc007ef44bcf9113f0e8f5289e8e342"
+  }
+}

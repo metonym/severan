@@ -1,0 +1,40 @@
+{
+  "library": "@skeletonlabs/skeleton-svelte@5.0.1",
+  "rewritten": {
+    "components": 23,
+    "edits": 0,
+    "tables": {
+      "pruned": 0,
+      "emptied": 0,
+      "variantKeys": 0,
+      "compoundVariants": 0
+    }
+  },
+  "js": {
+    "original": {
+      "bytes": 116510,
+      "gzip": 35724
+    },
+    "severan": {
+      "bytes": 116510,
+      "gzip": 35724
+    },
+    "gzipSmallerBy": "0.0%"
+  },
+  "css": {
+    "original": {
+      "bytes": 36108,
+      "gzip": 5614
+    },
+    "severan": {
+      "bytes": 36108,
+      "gzip": 5614
+    },
+    "gzipSmallerBy": "0.0%"
+  },
+  "html": {
+    "identical": true,
+    "bytes": 4147,
+    "sha1": "c1488e2fafc74fa31f03c2c1fdc165acbb33e75d"
+  }
+}

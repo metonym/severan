@@ -15,6 +15,7 @@
     "build": "bun scripts/build.ts",
     "test": "bun test --parallel ./tests",
     "test:package": "bun scripts/test-package.ts",
+    "examples": "bun scripts/examples.ts",
     "bench": "ostia bench bench/analysis.bench.ts bench/plugins.bench.ts bench/tables.bench.ts",
     "bench:ab": "ostia ab bench/analysis.bench.ts bench/plugins.bench.ts bench/tables.bench.ts",
     "typecheck": "bun check",

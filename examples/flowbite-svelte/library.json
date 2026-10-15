@@ -1,0 +1,9 @@
+{
+  "name": "flowbite-svelte",
+  "srcDir": "dist",
+  "barrel": "index.js",
+  "componentPackages": [],
+  "contextKeyPrefix": "flowbite:",
+  "label": "flowbite-svelte",
+  "tool": "severan"
+}

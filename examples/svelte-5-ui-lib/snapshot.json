@@ -1,0 +1,40 @@
+{
+  "library": "svelte-5-ui-lib@0.12.6",
+  "rewritten": {
+    "components": 22,
+    "edits": 163,
+    "tables": {
+      "pruned": 15,
+      "emptied": 97,
+      "variantKeys": 302,
+      "compoundVariants": 112
+    }
+  },
+  "js": {
+    "original": {
+      "bytes": 188115,
+      "gzip": 52770
+    },
+    "severan": {
+      "bytes": 138322,
+      "gzip": 42890
+    },
+    "gzipSmallerBy": "18.7%"
+  },
+  "css": {
+    "original": {
+      "bytes": 231693,
+      "gzip": 29413
+    },
+    "severan": {
+      "bytes": 46474,
+      "gzip": 8337
+    },
+    "gzipSmallerBy": "71.7%"
+  },
+  "html": {
+    "identical": true,
+    "bytes": 8126,
+    "sha1": "d4f8f6b4a8956db0dc6634e4d2d9361313b66c70"
+  }
+}

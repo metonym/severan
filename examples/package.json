@@ -1,0 +1,24 @@
+{
+  "name": "severan-examples",
+  "private": true,
+  "type": "module",
+  "description": "Apps that use real component libraries, built with and without severan: see scripts/examples.ts.",
+  "devDependencies": {
+    "@layerstack/tailwind": "1.0.1",
+    "@skeletonlabs/skeleton": "5.0.1",
+    "@skeletonlabs/skeleton-svelte": "5.0.1",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@sveltestrap/sveltestrap": "7.1.0",
+    "@tailwindcss/vite": "4.3.3",
+    "bits-ui": "2.19.5",
+    "bootstrap": "5.3.8",
+    "carbon-components-svelte": "0.113.1",
+    "flowbite": "3.1.2",
+    "flowbite-svelte": "1.33.1",
+    "svelte": "5.57.2",
+    "svelte-5-ui-lib": "0.12.6",
+    "svelte-ux": "1.0.11",
+    "tailwindcss": "4.3.3",
+    "vite": "8.3.4"
+  }
+}

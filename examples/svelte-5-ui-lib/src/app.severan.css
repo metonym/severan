@@ -1,0 +1,28 @@
+@import "tailwindcss";
+@plugin "flowbite/plugin";
+@custom-variant dark (&:where(.dark, .dark *));
+@theme {
+  --color-primary-50: #fff5f2;
+  --color-secondary-50: #f0f9ff;
+  --color-primary-100: #fff1ee;
+  --color-secondary-100: #e0f2fe;
+  --color-primary-200: #ffe4de;
+  --color-secondary-200: #bae6fd;
+  --color-primary-300: #ffd5cc;
+  --color-secondary-300: #7dd3fc;
+  --color-primary-400: #ffbcad;
+  --color-secondary-400: #38bdf8;
+  --color-primary-500: #fe795d;
+  --color-secondary-500: #0ea5e9;
+  --color-primary-600: #ef562f;
+  --color-secondary-600: #0284c7;
+  --color-primary-700: #eb4f27;
+  --color-secondary-700: #0369a1;
+  --color-primary-800: #cc4522;
+  --color-secondary-800: #075985;
+  --color-primary-900: #a5371b;
+  --color-secondary-900: #0c4a6e;
+  --color-primary-950: #8a2e16;
+  --color-secondary-950: #082f49;
+}
+@source "../node_modules/.severan/svelte-5-ui-lib";

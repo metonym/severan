@@ -1,0 +1,9 @@
+{
+  "name": "carbon-components-svelte",
+  "srcDir": "src",
+  "barrel": "index.js",
+  "componentPackages": ["carbon-icons-svelte", "carbon-pictograms-svelte"],
+  "contextKeyPrefix": "carbon:",
+  "label": "Carbon",
+  "tool": "severan"
+}

@@ -1,0 +1,40 @@
+{
+  "library": "flowbite-svelte@1.33.1",
+  "rewritten": {
+    "components": 42,
+    "edits": 432,
+    "tables": {
+      "pruned": 23,
+      "emptied": 118,
+      "variantKeys": 375,
+      "compoundVariants": 90
+    }
+  },
+  "js": {
+    "original": {
+      "bytes": 322840,
+      "gzip": 84125
+    },
+    "severan": {
+      "bytes": 166112,
+      "gzip": 52818
+    },
+    "gzipSmallerBy": "37.2%"
+  },
+  "css": {
+    "original": {
+      "bytes": 274258,
+      "gzip": 34696
+    },
+    "severan": {
+      "bytes": 84288,
+      "gzip": 13577
+    },
+    "gzipSmallerBy": "60.9%"
+  },
+  "html": {
+    "identical": true,
+    "bytes": 14683,
+    "sha1": "e527d977c117d481728869808d97271eb38ab5ea"
+  }
+}

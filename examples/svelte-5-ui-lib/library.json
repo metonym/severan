@@ -1,0 +1,9 @@
+{
+  "name": "svelte-5-ui-lib",
+  "srcDir": "dist",
+  "barrel": "index.js",
+  "componentPackages": [],
+  "contextKeyPrefix": "s5ui:",
+  "label": "svelte-5-ui-lib",
+  "tool": "severan"
+}
