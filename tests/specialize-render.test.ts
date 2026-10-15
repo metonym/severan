@@ -442,8 +442,12 @@ export * as Parts from "./parts/index.js";
 export { Card } from "./card.js";
 export * from "./Sizes.svelte";
 export { cn, pick } from "./helpers.js";
-export { default as Uses } from "./Uses.svelte";`,
+export { default as Uses } from "./Uses.svelte";
+export { Listed } from "./listed.js";`,
   "parts/index.js": 'export { default as Inner } from "./Inner.svelte";',
+  "listed.js": `import Inner from "./parts/Inner.svelte";
+export {};
+export { Inner as Listed };`,
   "parts/Inner.svelte": KIND,
   "Outer.svelte": `<script>
   import Inner from "./parts/Inner.svelte";
@@ -500,6 +504,7 @@ describe("barrels", () => {
     "a component with members": barrel(
       "<Outer /><Card><Card.Item kind='b' /></Card>",
     ),
+    "an import exported again": barrel("<Outer /><Listed kind='b' />"),
     "the library's own imports of those": barrel("<Uses /><Inner />"),
     "a value it exports": barrel(
       "<Inner kind='b' />{SIZES.length}{cn('x')}",
@@ -524,6 +529,7 @@ describe("barrels", () => {
     ["`export *`", "<Inner kind='b' />"],
     ["a namespace re-export", "<Parts.Inner kind='b' />"],
     ["a component with members", "<Card><Card.Item kind='b' /></Card>"],
+    ["an import exported again", "<Listed kind='b' />"],
   ])("reads a call site through %s", async (_, markup) => {
     const sources = await specializedLibrary(barrel(markup));
     expect(sources["parts/Inner.svelte"]).not.toContain("<i>A</i>");
