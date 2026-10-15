@@ -86,7 +86,8 @@ const TVLIB_FILES: Record<string, string> = {
     svelte: "./src/index.js",
     exports: { ".": "./src/index.js", "./*": "./src/*" },
   }),
-  "src/index.js": `export { default as Button } from "./Button.svelte";\nexport * from "./theme.js";\n`,
+  "src/index.js": `export { default as Button } from "./Button.svelte";\nexport { default as Badge } from "./Badge.svelte";\nexport * from "./theme.js";\n`,
+  "src/Badge.svelte": `<span class="badge-only"></span>`,
   "src/theme.js": `import { tv } from "tailwind-variants";
 export const button = tv({ variants: { color: { red: "bg-red", green: "bg-green" } } });
 `,
@@ -97,8 +98,11 @@ export const button = tv({ variants: { color: { red: "bg-red", green: "bg-green"
 <button class={button({ color })}></button>`,
 };
 
-/** Installs `tvlib` and the stand-in `tailwind-variants` in `root`'s `node_modules`. */
-export function installTableLibrary(root: string): string {
+/** Installs `tvlib` and the stand-in `tailwind-variants` (and `tailwindcss`, a manifest only) in `root`'s `node_modules`. */
+export function installTableLibrary(
+  root: string,
+  { tailwind = false } = {},
+): string {
   const write = (file: string, code: string) => {
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, code);
@@ -118,5 +122,11 @@ export function installTableLibrary(root: string): string {
       main: "index.js",
     }),
   );
+  if (tailwind) {
+    write(
+      path.join(root, "node_modules", "tailwindcss", "package.json"),
+      JSON.stringify({ name: "tailwindcss", version: "4.1.0" }),
+    );
+  }
   return tvlib;
 }

@@ -35,7 +35,7 @@ If your app only ever writes `<Button kind="ghost">`, Svelte compiles this inste
 {/if}
 ```
 
-Libraries that keep their classes in [tailwind-variants](https://www.tailwind-variants.org/) tables (`tv({ variants: { color: { red: "…", green: "…" } } })`) get those tables rewritten too: keys no live call can select are removed, and a table nothing calls keeps no classes.
+Libraries that keep their classes in [tailwind-variants](https://www.tailwind-variants.org/) tables (`tv({ variants: { color: { red: "…", green: "…" } } })`) get those tables rewritten too: keys no live call can select are removed, and a table nothing calls keeps no classes. With Tailwind, scanning what severan writes for it leaves those classes out of your CSS as well (see [Tailwind](#tailwind)).
 
 It runs on production builds, in Vite, Rollup, Rolldown, webpack and Rspack, for Svelte 3, 4 and 5 (runes included). Rewritten components come with source maps back to their original source.
 
@@ -80,6 +80,16 @@ export default {
 
 It adds a loader that runs before `svelte-loader` on `.svelte` files.
 
+### Tailwind
+
+Tailwind generates a utility for every class string it scans, and a library's setup has it scan the package (`@source "../node_modules/my-library/dist"`). With Tailwind installed, every build writes what of the library can render to `node_modules/.severan/<name>`: every file but the components that can't render, as severan rewrote them (components and tailwind-variants tables). Scan that instead, with Tailwind v4's `@source`:
+
+```css
+@source "../node_modules/.severan/my-library";
+```
+
+or a Tailwind v3 `content` glob: `"./node_modules/.severan/my-library/**/*.{svelte,js}"`. The dev server and development builds write the library as it is, so their CSS has every class.
+
 ## API reference
 
 severan has no CLI: it runs inside your bundler (`severan/vite`, `severan/webpack`), or from your own script with `specializeFiles` (`severan`). Each entry ships its own types:
@@ -105,7 +115,7 @@ function severan(
 
 A Vite, Rollup and Rolldown plugin. Put it before the Svelte plugin.
 
-- Runs on `vite build` only (`apply: "build"`, `--watch` included), never on the dev server. Rollup and Rolldown ignore `apply`: add it only to production configs there.
+- Rewrites on `vite build` only (`--watch` included), never on the dev server, which only writes the library as it is for [Tailwind](#tailwind). Rollup and Rolldown have no dev server: add it only to production configs there.
 - `buildStart` reads `content`, resolving aliased `.svelte` imports (`$lib/Card.svelte`) with the bundler. A watch rebuild where nothing in `content` changed reuses the last analysis.
 - `load` serves the rewritten components, with source maps; `transform` and `buildEnd` check the module graph and fail the build when a module the analysis didn't read imports the library (see [Errors](#warnings-and-errors)).
 
@@ -124,7 +134,7 @@ class SeveranPlugin {
 }
 ```
 
-A webpack 5 and Rspack plugin. It does nothing unless `mode` is `"production"` (an unset `mode` counts). It adds a pre-loader on `.svelte` files and the library's script modules, so `svelte-loader` compiles the rewritten source wherever the plugin sits in `plugins`, analyzes `content` on `beforeRun` and `watchRun`, and checks the module graph on `finishModules`.
+A webpack 5 and Rspack plugin. It rewrites nothing unless `mode` is `"production"` (an unset `mode` counts); other modes only write the library as it is for [Tailwind](#tailwind). It adds a pre-loader on `.svelte` files and the library's script modules, so `svelte-loader` compiles the rewritten source wherever the plugin sits in `plugins`, analyzes `content` on `beforeRun` and `watchRun`, and checks the module graph on `finishModules`.
 
 ### `LibrarySpec`
 
@@ -198,6 +208,7 @@ It never throws: if the analysis fails, it resolves to `{ warning }` and nothing
 | `sources` | `Map<string, { code: string; map: SourceMap }>` | Rewritten components and script modules by the real path of their source, each with a v3 source map. Serve these instead of the files on disk. |
 | `edits` | `number` | Edits made to components, across `sources`. |
 | `apps` | `number` | How many of `sources` are the app's own components. |
+| `renderable` | `ReadonlySet<string>` | The library components that can render, by path in `srcDir`. |
 | `tables` | `{ modules, pruned, emptied, keys, compounds }` | The tailwind-variants tables rewritten: how many of `sources` are their modules, tables pruned and emptied, and variant keys and compound variants removed. |
 | `closed` | `Set<string>` | App components whose props came from their call sites in `files`. Nothing outside `files` may render them; the plugins check it. |
 | `report` | `() => string[]` | The lines `report: true` prints. |
@@ -267,6 +278,14 @@ How much it saves depends on how a library is written. Gzipped client JS on a re
 | @skeletonlabs/skeleton-svelte | headless, state machines | 0% |
 
 Libraries whose markup branches on their props gain the most, and so do those whose tailwind-variants tables hold every variant's classes. Headless libraries that keep their state in classes or hand their props to a state machine leave little to fold.
+
+Tailwind's CSS for the same pages (v4, with each library's plugin), gzipped, scanning `node_modules/.severan` instead of the package:
+
+| Library | Smaller by |
+|:---|:---|
+| flowbite-svelte | 61.1% |
+| svelte-5-ui-lib | 71.8% |
+| svelte-ux | 26.0% |
 
 ## Limitations
 

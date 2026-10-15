@@ -10,6 +10,11 @@
   table nothing calls keeps no classes. Gzipped client JS on a realistic
   page: flowbite-svelte 30.4% smaller (was 5.7%), svelte-5-ui-lib 16.1%
   (was 3.8%).
+- With Tailwind installed, every build writes what of the library can
+  render to `node_modules/.severan/<name>`, for Tailwind to scan in place
+  of the package (`@source`, or a v3 `content` glob; the dev server writes
+  it as it is). Gzipped Tailwind CSS on the same pages: flowbite-svelte
+  61.1% smaller, svelte-5-ui-lib 71.8%, svelte-ux 26.0%.
 - Builds fail when a module outside the library imports a script module
   whose tables were rewritten (through an alias).
 

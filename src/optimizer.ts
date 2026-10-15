@@ -54,6 +54,21 @@ const LEXABLE = /\.(svelte|[cm]?[jt]sx?)$/;
 const ALIAS_SVELTE_IMPORT =
   /\b(?:from|import)\s*["']([^"'./][^"']*\.svelte)["']/g;
 
+/** With Tailwind installed, the library is written to `node_modules/.severan` for it to scan. */
+const usesTailwind = (root: string) =>
+  installedMajor("tailwindcss", root) !== undefined;
+
+/** For builds that don't rewrite (development): the library as it is, for Tailwind. */
+export async function writeOriginalsForTailwind(
+  spec: LibrarySpec,
+  root: string,
+  names: PluginNames,
+): Promise<string | undefined> {
+  if (!usesTailwind(root)) return undefined;
+  const { writeLibraryForTailwind } = await import("./analysis");
+  return writeLibraryForTailwind(spec, root, undefined, names.failure);
+}
+
 const isInNodeModules = (file: string) =>
   file.split(PATH_SEPARATOR).includes("node_modules");
 
@@ -244,6 +259,16 @@ export function createComponentOptimizer(
         };
       }
       const { result } = last;
+      if (usesTailwind(root)) {
+        const { writeLibraryForTailwind } = await import("./analysis");
+        const warning = await writeLibraryForTailwind(
+          spec,
+          root,
+          "warning" in result ? undefined : result,
+          names.failure,
+        );
+        if (warning) return { warning };
+      }
       if ("warning" in result) return { warning: result.warning };
       build.sources = result.sources;
       build.readImport = result.readImport;

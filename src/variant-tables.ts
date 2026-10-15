@@ -465,6 +465,29 @@ function scriptReads(
   return undefined;
 }
 
+const scriptReadsCache = new Map<
+  string,
+  { signature: string; reason: string | undefined }
+>();
+
+/** `scriptReads` for the installed library, cached by its version. */
+export async function scriptRendersComponents(
+  library: Library,
+): Promise<string | undefined> {
+  const signature = await packageSignature(library.root, library.spec.srcDir);
+  const cached = scriptReadsCache.get(library.src);
+  if (cached?.signature === signature) return cached.reason;
+  const files = (await listJsAndSvelteFiles(library.src)).filter((file) =>
+    file.endsWith(".js"),
+  );
+  const codes = await Promise.all(
+    files.map((file) => readFile(path.join(library.src, file), "utf8")),
+  );
+  const reason = scriptReads(library, files, codes);
+  scriptReadsCache.set(library.src, { signature, reason });
+  return reason;
+}
+
 function isExported(model: ComponentModel, name: string): boolean {
   return (model.ast.module?.content.body ?? []).some(
     (statement) =>

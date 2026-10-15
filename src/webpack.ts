@@ -10,6 +10,7 @@ import {
   type ImportResolver,
   type PluginNames,
   type SeveranOptions,
+  writeOriginalsForTailwind,
 } from "./optimizer";
 import { RE_EXT_JS, RE_EXT_SVELTE } from "./util";
 import {
@@ -69,7 +70,10 @@ export type WebpackCompiler = {
       ): void;
     };
   };
-  getInfrastructureLogger(name: string): { info(message: string): void };
+  getInfrastructureLogger(name: string): {
+    info(message: string): void;
+    warn(message: string): void;
+  };
   resolverFactory?: { get(type: "normal"): Resolver };
 };
 
@@ -137,7 +141,22 @@ export class SeveranPlugin {
     // Plugins apply before the bundler fills in its defaults, and an unset
     // `mode` means production. The dev server's single-module rebuilds
     // would leave rewritten components stale.
-    if (!isProduction(compiler)) return;
+    if (!isProduction(compiler)) {
+      // Nothing is rewritten: Tailwind's `@source` gets the library as it is.
+      const write = async () => {
+        const warning = await writeOriginalsForTailwind(
+          this.spec,
+          compiler.context,
+          this.names,
+        );
+        if (warning) {
+          compiler.getInfrastructureLogger(this.names.plugin).warn(warning);
+        }
+      };
+      compiler.hooks.beforeRun.tapPromise(this.names.plugin, write);
+      compiler.hooks.watchRun.tapPromise(this.names.plugin, write);
+      return;
+    }
 
     const { WebpackError } = compiler.webpack;
     const { spec } = this;
