@@ -3,6 +3,7 @@ import {
   mkdirSync,
   readFileSync,
   realpathSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -678,6 +679,31 @@ describe("severan/vite", () => {
           path.join(project.root, "node_modules/tvlib/src/theme.js"),
         ) !== undefined,
       ).toBe(build);
+    } finally {
+      project.dispose();
+    }
+  });
+
+  test("a watch rebuild rewrites Tailwind's directory only when it's gone", async () => {
+    const project = createFakeProject();
+    try {
+      installTableLibrary(project.root, { tailwind: true });
+      mkdirSync(path.join(project.root, "src"));
+      writeFileSync(
+        path.join(project.root, "src", "App.svelte"),
+        `<script>import { Button } from "tvlib";</script>\n<Button color="red" />`,
+      );
+      const plugin = severan(TVLIB, {
+        silent: true,
+      }) as unknown as ResolvedPlugin;
+      plugin.configResolved({ root: project.root, command: "build" });
+      await plugin.buildStart.call(context());
+      const written = path.join(project.root, "node_modules/.severan/tvlib");
+      rmSync(written, { recursive: true });
+      await plugin.buildStart.call(context());
+      expect(readFileSync(path.join(written, "theme.js"), "utf8")).toContain(
+        "bg-red",
+      );
     } finally {
       project.dispose();
     }

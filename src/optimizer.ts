@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { globSync, readFileSync } from "node:fs";
+import { existsSync, globSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type {
   Failure,
@@ -13,7 +13,7 @@ import {
   type LibrarySpec,
   libraryPaths,
 } from "./library-paths";
-import { installedMajor } from "./package";
+import { installedMajor, packageSignature, requirePackageDir } from "./package";
 import { importKey, RE_EXT_STYLESHEET, realpath, stripQuery } from "./util";
 
 export type SeveranOptions = {
@@ -196,6 +196,10 @@ export function createComponentOptimizer(
   let last:
     | { hash: string; result: SpecializedComponents | { warning: string } }
     | undefined;
+  /** What Tailwind's directory was last written from: unchanged, it needn't be rewritten. */
+  let written:
+    | { result: SpecializedComponents | { warning: string }; key: string }
+    | undefined;
 
   const realpathOf = (file: string): string | undefined => {
     if (!build.realpaths.has(file)) build.realpaths.set(file, realpath(file));
@@ -260,14 +264,31 @@ export function createComponentOptimizer(
       }
       const { result } = last;
       if (usesTailwind(root)) {
-        const { writeLibraryForTailwind } = await import("./analysis");
-        const warning = await writeLibraryForTailwind(
-          spec,
-          root,
-          "warning" in result ? undefined : result,
-          names.failure,
-        );
-        if (warning) return { warning };
+        // A linked library's edits change its signature; one that can't be
+        // resolved is written (and warned about) every build.
+        const dir = path.join(root, "node_modules", ".severan", spec.name);
+        let key: string | undefined;
+        try {
+          const libraryRoot = requirePackageDir(spec.name, root);
+          key = `${dir}\0${await packageSignature(libraryRoot, spec.srcDir)}`;
+        } catch {}
+        if (
+          written?.result !== result ||
+          key === undefined ||
+          written.key !== key ||
+          !existsSync(dir)
+        ) {
+          written = undefined;
+          const { writeLibraryForTailwind } = await import("./analysis");
+          const warning = await writeLibraryForTailwind(
+            spec,
+            root,
+            "warning" in result ? undefined : result,
+            names.failure,
+          );
+          if (warning) return { warning };
+          if (key !== undefined) written = { result, key };
+        }
       }
       if ("warning" in result) return { warning: result.warning };
       build.sources = result.sources;
