@@ -33,9 +33,16 @@ export type LiveResult = {
   childSites: CallSite[];
 };
 
+/** Calls a walk reports as it reaches them, live. */
+export type WatchedCalls = {
+  watched: ReadonlyMap<Node, unknown>;
+  call(node: Node): void;
+};
+
 type Walk = LiveResult & {
   tokens: ClassTokens | undefined;
   library: LibraryPaths;
+  calls: WatchedCalls | undefined;
 };
 
 function addTokens(text: string, result: Walk): void {
@@ -51,13 +58,18 @@ function addTokens(text: string, result: Walk): void {
  * Skips only what usage proves can't run: falsy branches, `{#each}` over an
  * always-empty array, falsy `class:`. Function bodies count as live.
  */
-export function walkLive(scope: Scope, library: LibraryPaths): LiveResult {
+export function walkLive(
+  scope: Scope,
+  library: LibraryPaths,
+  calls?: WatchedCalls,
+): LiveResult {
   const result: Walk = {
     classes: new Set(),
     prefixes: new Set(),
     childSites: [],
     tokens: library.spec.classTokens,
     library,
+    calls,
   };
   const { ast } = scope.model;
   // `<style>` holds no rendered classes.
@@ -199,6 +211,10 @@ function visit(node: Node, scope: Scope, result: Walk): void {
 
     case "SvelteSelf":
       result.childSites.push(elementSite(node, scope.model.key, scope));
+      break;
+
+    case "CallExpression":
+      if (result.calls?.watched.has(node)) result.calls.call(node);
       break;
   }
 

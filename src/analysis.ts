@@ -24,6 +24,7 @@ import {
 import type { CallSite } from "./usage";
 import { errorMessage, isSvelteFile, realpath, stripQuery } from "./util";
 import { formatValue, UNKNOWN } from "./values";
+import { type RewrittenTables, specializeTables } from "./variant-tables";
 
 export type UsageResult = {
   analysis: UsageAnalysis;
@@ -330,6 +331,10 @@ export type SpecializedComponents = {
   closed: Set<string>;
   /** How many of the app's own components `sources` holds. */
   apps: number;
+  /** tailwind-variants tables rewritten (`sources` holds their modules). */
+  tables: Pick<RewrittenTables, "pruned" | "emptied" | "keys" | "compounds"> & {
+    modules: number;
+  };
   report: () => string[];
   /**
    * Whether the analysis read `importer`'s import of library module `id` (real
@@ -373,6 +378,7 @@ export async function specializeFiles(input: {
   let edits = 0;
   const rewrites: ComponentRewrite[] = [];
   const appRewrites: Array<{ file: string; edits: number }> = [];
+  let tables: RewrittenTables;
   const serve = (file: string, scope: Scope, specialized: Specialization) => {
     edits += specialized.edits;
     sources.set(file, {
@@ -409,6 +415,18 @@ export async function specializeFiles(input: {
       if (specialized.edits > 0)
         serve(realpath(file) ?? file, scope, specialized);
     }
+    tables = await specializeTables(
+      library,
+      [...appUsage.read.values()],
+      (key) => result.analysis.scopeFor(key),
+    );
+    for (const [module, { mapped, source }] of tables.modules) {
+      const file = path.join(src, module);
+      sources.set(file, {
+        code: mapped.text,
+        map: toSourceMap(mapped, source, path.basename(file)),
+      });
+    }
   } catch (error) {
     return { warning: failure(input.library, error, input.failure) };
   }
@@ -424,11 +442,13 @@ export async function specializeFiles(input: {
       return !key || readLibraryImport(library, read.get(importer), key);
     },
     apps: appRewrites.filter((rewrite) => rewrite.edits > 0).length,
+    tables: { ...tables, modules: tables.modules.size },
     report: () =>
       formatSpecializeReport(
         result,
         rewrites,
         appRewrites,
+        tables,
         input.projectRoot,
         input.failure.feature,
       ),
@@ -447,6 +467,7 @@ function formatSpecializeReport(
   result: UsageResult,
   rewrites: ComponentRewrite[],
   appRewrites: Array<{ file: string; edits: number }>,
+  tables: RewrittenTables,
   root: string,
   feature: string,
 ): string[] {
@@ -492,6 +513,14 @@ function formatSpecializeReport(
         `    ${rewrite.name.padEnd(appWidth)}   ${String(rewrite.edits).padStart(4)} edit${rewrite.edits === 1 ? "" : "s"}`,
       );
     }
+  }
+  if (tables.modules.size > 0) {
+    lines.push(
+      `  Rewrote ${tables.pruned + tables.emptied} tailwind-variants tables in ${tables.modules.size} modules: ${tables.pruned} pruned (${tables.keys} variant keys, ${tables.compounds} compound variants), ${tables.emptied} nothing calls emptied`,
+    );
+  }
+  for (const [table, why] of [...tables.kept].sort()) {
+    lines.push(`    every class kept: ${table} (${why})`);
   }
   lines.push(
     `  No longer bundled (${unbundled.size}): ${[...unbundled].map(name).sort().join(", ") || "none"}`,

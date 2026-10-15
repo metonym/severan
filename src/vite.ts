@@ -61,6 +61,13 @@ export function severan(
         optimizer.checkLibraryImport(edge);
       }
       for (const id of this.getModuleIds()) {
+        if (optimizer.load(id) && id.endsWith(".js")) {
+          const info = this.getModuleInfo(id);
+          optimizer.checkScriptImporters(id, [
+            ...(info?.importers ?? []),
+            ...(info?.dynamicImporters ?? []),
+          ]);
+        }
         if (!optimizer.isClosed(id)) continue;
         const info = this.getModuleInfo(id);
         if (!info) continue;

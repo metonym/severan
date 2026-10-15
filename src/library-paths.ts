@@ -70,6 +70,10 @@ function patternsOf(spec: LibrarySpec) {
       `(["'\`])(${escapeRegExp(spec.contextKeyPrefix)}[^"'\`\\s]+)\\1`,
       "g",
     ),
+    /** A specifier of one of its modules that's neither a component nor a stylesheet. */
+    valueSubpath: new RegExp(
+      `["'\`]${name}\\/(?![^"'\`]*\\.(?:svelte|css)["'\`])`,
+    ),
     /** An import of one of its modules that isn't a component. */
     scriptSpecifier: new RegExp(
       `["']${component}(?![^"']*\\.svelte["'])[^"']*["']`,

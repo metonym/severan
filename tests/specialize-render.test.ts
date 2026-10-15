@@ -4,6 +4,7 @@ import {
   renderSpecialized,
   specializedLibrary,
 } from "./helpers/render-library";
+import { TAILWIND_VARIANTS } from "./helpers/tailwind-variants";
 
 // Each app renders the same HTML with the library rewritten for it as
 // without: SSR, Svelte 5, `unwrap` off and on.
@@ -579,6 +580,254 @@ describe("blocks in elements that drop whitespace", () => {
       app: appRendering('<Rows items="x" />'),
     };
     const { before, after } = await renderSpecialized(shape, { unwrap });
+    expect(after).toBe(before);
+  });
+});
+
+// tailwind-variants tables in the library's script modules lose the keys no
+// live call can select, and the compound variants that need one; a table
+// nothing calls keeps no classes. Any use the analysis can't read keeps them.
+
+const THEME = `import { tv } from "tailwind-variants";
+export const button = tv({
+  base: "btn",
+  variants: {
+    color: { red: "bg-red", green: "bg-green", blue: "bg-blue" },
+    size: { sm: "text-sm", md: "text-md", lg: "text-lg" },
+    pill: { true: "rounded-full", false: "rounded" },
+  },
+  compoundVariants: [
+    { color: "red", size: "lg", class: "red-lg" },
+    { color: ["green", "blue"], pill: true, class: "cool-pill" },
+  ],
+  defaultVariants: { color: "blue", size: "md" },
+});
+export const crumb = tv({
+  slots: { base: "crumb", icon: "icon" },
+  variants: {
+    home: { true: { base: "home", icon: "icon-home" }, false: { base: "page" } },
+    tone: { dark: { icon: "icon-dark" }, light: { icon: "icon-light" } },
+  },
+  defaultVariants: { tone: "light" },
+});
+export const badge = tv({ base: "badge", variants: { tint: { gray: "bg-gray", teal: "bg-teal" } } });
+`;
+
+const TABLES_LIBRARY = {
+  "theme.js": THEME,
+  "index.js": `export { default as Button } from "./Button.svelte";
+export { default as Crumb } from "./Crumb.svelte";
+export { default as Badge } from "./Badge.svelte";
+export { default as Toggle } from "./Toggle.svelte";
+export { default as Swatches } from "./Swatches.svelte";
+export { default as Picker } from "./Picker.svelte";
+export { default as Spread } from "./Spread.svelte";
+export * from "./theme.js";
+`,
+  "Button.svelte": `<script>
+  import { button } from "./theme.js";
+  let { color, size, pill = false, children } = $props();
+  const cls = $derived(button({ color, size, pill }));
+</script>
+<button class={cls}>{@render children?.()}</button>`,
+  "Crumb.svelte": `<script>
+  import { crumb } from "./theme.js";
+  let { home = false, tone, children } = $props();
+  const { base, icon } = $derived(crumb({ tone }));
+</script>
+<li class={base({ home })}><i class={icon()}></i>{@render children?.()}</li>`,
+  "Badge.svelte": `<script>
+  import { badge } from "./theme.js";
+  let { tint = "gray" } = $props();
+</script>
+<span class={badge({ tint })}>b</span>`,
+  "Toggle.svelte": `<script>
+  import { button } from "./theme.js";
+  let on = $state(false);
+</script>
+<button class={button({ pill: on, color: "green" })} onclick={() => (on = !on)}>t</button>`,
+  "Swatches.svelte": `<script>
+  import { button } from "./theme.js";
+</script>
+{#each ["red", "green"] as color}<span class={button({ color, size: "sm" })}></span>{/each}`,
+  "Picker.svelte": `<script>
+  import { button } from "./theme.js";
+  const cls = (color) => button({ color });
+</script>
+<span class={cls("red")}></span>`,
+  "Spread.svelte": `<script>
+  import { button } from "./theme.js";
+  let { ...rest } = $props();
+</script>
+<span class={button({ ...rest })}></span>`,
+};
+
+const tables = (
+  markup: string,
+  script = "",
+  lib: Record<string, string> = {},
+): LibraryApp => ({
+  lib: { ...TABLES_LIBRARY, ...lib },
+  app: appRendering(markup, script),
+  packages: { "tailwind-variants": TAILWIND_VARIANTS },
+});
+
+const TABLE_APPS: Record<string, LibraryApp> = {
+  "one color and size": tables('<Button color="red" size="lg">x</Button>'),
+  defaults: tables("<Button>x</Button>"),
+  "a boolean variant": tables('<Button pill color="green">x</Button>'),
+  "colors from several call sites": tables(
+    '<Button color="red" /><Button color="green" pill size="sm" />',
+  ),
+  "slots, and a slot call's own props": tables(
+    '<Crumb home>Home</Crumb><Crumb tone="dark">Page</Crumb>',
+  ),
+  "state a handler changes": tables("<Toggle />"),
+  "each-block items": tables("<Swatches />"),
+  "a call inside a function": tables("<Picker />"),
+  "props spread into a call": tables('<Spread color="red" />'),
+  "a value the app passes on": tables(
+    "<Button {color}>x</Button>",
+    'let { color = "red" } = $props();',
+  ),
+};
+
+describe("tailwind-variants tables render as the original", () => {
+  const cases = Object.keys(TABLE_APPS).flatMap((name): [string, boolean][] => [
+    [name, false],
+    [name, true],
+  ]);
+  test.each(cases)("%s (unwrap: %p)", async (name, unwrap) => {
+    const { before, after } = await renderSpecialized(TABLE_APPS[name], {
+      unwrap,
+    });
+    expect(after).toBe(before);
+  });
+});
+
+describe("tailwind-variants tables", () => {
+  const theme = async (shape: LibraryApp) =>
+    (await specializedLibrary(shape))["theme.js"] ?? THEME;
+
+  test("drop the keys and compound variants no call selects", async () => {
+    const code = await theme(TABLE_APPS["one color and size"]);
+    for (const kept of ["bg-red", "text-lg", "rounded", "red-lg", "crumb"]) {
+      expect(code).toContain(kept);
+    }
+    for (const dropped of ["bg-green", "bg-blue", "text-sm", "text-md"]) {
+      expect(code).not.toContain(dropped);
+    }
+    expect(code).not.toContain("rounded-full");
+    expect(code).not.toContain("cool-pill");
+  });
+
+  test("keep the default a call leaves out", async () => {
+    const code = await theme(TABLE_APPS.defaults);
+    expect(code).toContain("bg-blue");
+    expect(code).toContain("text-md");
+    expect(code).not.toContain("bg-red");
+  });
+
+  test("keep what slot calls pass", async () => {
+    const code = await theme(TABLE_APPS["slots, and a slot call's own props"]);
+    for (const kept of ["icon-home", "page", "icon-dark", "icon-light"]) {
+      expect(code).toContain(kept);
+    }
+  });
+
+  test("empty a table nothing calls", async () => {
+    const code = await theme(TABLE_APPS["one color and size"]);
+    expect(code).toContain("export const badge = tv({})");
+    expect(code).not.toContain("bg-gray");
+  });
+
+  test("keep both keys of a boolean that changes", async () => {
+    const code = await theme(TABLE_APPS["state a handler changes"]);
+    expect(code).toContain("rounded-full");
+    expect(code).toContain("cool-pill");
+    expect(code).not.toContain("bg-red");
+  });
+
+  test.each([
+    ["a call inside a function", "color"],
+    ["props spread into a call", "color"],
+  ])("keep every key a variant may get: %s", async (name) => {
+    const code = await theme(TABLE_APPS[name]);
+    expect(code).toContain("bg-green");
+    expect(code).toContain("bg-blue");
+  });
+
+  test.each([
+    [
+      "the app imports it",
+      tables('<Button color="red" />', 'import { button } from "mylib";'),
+    ],
+    [
+      "the app imports the library as a namespace",
+      tables('<Button color="red" />', 'import * as L from "mylib";'),
+    ],
+    [
+      "another table extends it",
+      tables('<Button color="red" />', "", {
+        "more.js": `import { tv } from "tailwind-variants";
+import { button } from "./theme.js";
+export const big = tv({ extend: button, base: "big" });`,
+      }),
+    ],
+    [
+      "a script module reads it",
+      tables('<Button color="red" />', "", {
+        "classes.js": `import { button } from "./theme.js";
+export const red = () => button({ color: "red" });`,
+      }),
+    ],
+    [
+      "a component imports its module dynamically",
+      tables("<Lazy />", "", {
+        "Lazy.svelte": `<script>
+  import Button from "./Button.svelte";
+  const theme = import("./theme.js");
+</script>
+<Button color="red" />{#await theme then { button }}<i class={button({ color: "green" })}></i>{/await}`,
+        "index.js": `${TABLES_LIBRARY["index.js"]}export { default as Lazy } from "./Lazy.svelte";\n`,
+      }),
+    ],
+    [
+      "a component hands it on",
+      tables("<Hands />", "", {
+        "Hands.svelte": `<script>
+  import { button } from "./theme.js";
+  import Button from "./Button.svelte";
+  const make = button;
+</script>
+<Button color="red" /><span class={make({ color: "green" })}></span>`,
+        "index.js": `${TABLES_LIBRARY["index.js"]}export { default as Hands } from "./Hands.svelte";\n`,
+      }),
+    ],
+  ])("keep every class when %s", async (_, shape) => {
+    expect(await theme(shape)).toContain("bg-green");
+    const { before, after } = await renderSpecialized(shape, { unwrap: true });
+    expect(after).toBe(before);
+  });
+
+  test("follow a table re-exported through an index", async () => {
+    const shape = tables('<Card color="green" />', "", {
+      "card/theme.js": `import { tv } from "tailwind-variants";
+export const card = tv({ variants: { color: { green: "card-green", gray: "card-gray" } } });`,
+      "card/index.js": `import Card from "./Card.svelte";
+import { card } from "./theme.js";
+export { Card, card };`,
+      "card/Card.svelte": `<script>
+  import { card } from ".";
+  let { color } = $props();
+</script>
+<div class={card({ color })}></div>`,
+      "index.js": `${TABLES_LIBRARY["index.js"]}export * from "./card/index.js";\n`,
+    });
+    const sources = await specializedLibrary(shape);
+    expect(sources["card/theme.js"]).toContain("card-green");
+    expect(sources["card/theme.js"]).not.toContain("card-gray");
+    const { before, after } = await renderSpecialized(shape, { unwrap: true });
     expect(after).toBe(before);
   });
 });

@@ -95,11 +95,23 @@ function writeProject({ lib, app, packages = {} }: LibraryApp) {
   return { root, files };
 }
 
-/** Compiles `.svelte` files for SSR, `overrides` (by real path) in place of their source. */
+const REGEXP_SPECIAL = /[.*+?^${}()|[\]\\]/g;
+
+/** Compiles `.svelte` files for SSR; `overrides` (by real path) replace their source, and that of script modules. */
 function svelteServer(overrides: ReadonlyMap<string, string>): BunPlugin {
+  const scripts = [...overrides.keys()].filter((file) => file.endsWith(".js"));
   return {
     name: "svelte-server",
     setup(build) {
+      if (scripts.length > 0) {
+        const filter = new RegExp(
+          `^(?:${scripts.map((file) => file.replace(REGEXP_SPECIAL, "\\$&")).join("|")})$`,
+        );
+        build.onLoad({ filter }, ({ path: file }) => ({
+          contents: overrides.get(realpathSync(file)) ?? "",
+          loader: "js",
+        }));
+      }
       build.onLoad({ filter: SVELTE_FILE }, async ({ path: file }) => ({
         contents: compile(
           overrides.get(realpathSync(file)) ?? (await Bun.file(file).text()),

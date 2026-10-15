@@ -11,7 +11,7 @@ import {
   type PluginNames,
   type SeveranOptions,
 } from "./optimizer";
-import { RE_EXT_SVELTE } from "./util";
+import { RE_EXT_JS, RE_EXT_SVELTE } from "./util";
 import {
   importEdges,
   isProduction,
@@ -113,8 +113,9 @@ const LOADER = (() => {
  * the app renders for the props it passes.
  *
  * Runs on production builds only. It adds a loader before `svelte-loader`
- * on `.svelte` files, and fails the build if a module outside `content`
- * imports one of the library's components.
+ * on `.svelte` files (and on the library's script modules, for its
+ * tailwind-variants tables), and fails the build if a module outside
+ * `content` imports one of the library's components.
  */
 export class SeveranPlugin {
   private readonly spec: LibrarySpec;
@@ -154,11 +155,20 @@ export class SeveranPlugin {
     // the rewritten source wherever this plugin sits in `plugins`. Every
     // `.svelte` file: which of the app's own get rewritten depends on the
     // analysis, and the loader passes the rest through.
-    compiler.options.module.rules.push({
-      test: RE_EXT_SVELTE,
-      enforce: "pre",
-      use: [{ loader: this.names.loader, options: { id } }],
-    });
+    compiler.options.module.rules.push(
+      {
+        test: RE_EXT_SVELTE,
+        enforce: "pre",
+        use: [{ loader: this.names.loader, options: { id } }],
+      },
+      // The library's script modules: rewritten tailwind-variants tables.
+      {
+        test: RE_EXT_JS,
+        include: library.patterns.srcSegment,
+        enforce: "pre",
+        use: [{ loader: this.names.loader, options: { id } }],
+      },
+    );
 
     let warning: string | undefined;
     const prepare = async () => {
@@ -182,6 +192,17 @@ export class SeveranPlugin {
           const code = moduleSource(module);
           if (code !== undefined) optimizer.check(resource, code);
           const { moduleGraph } = compilation;
+          if (resource.endsWith(".js") && optimizer.load(resource)) {
+            optimizer.checkScriptImporters(
+              resource,
+              [...moduleGraph.getIncomingConnections(module)].map(
+                ({ originModule }) =>
+                  typeof originModule?.resource === "string"
+                    ? originModule.resource
+                    : undefined,
+              ),
+            );
+          }
           if (library.importKey(resource)) {
             for (const edge of importEdges(
               resource,
