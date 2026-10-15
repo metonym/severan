@@ -50,6 +50,8 @@ type ModuleInfo = {
   stars: string[];
   /** Import bindings, by local name; `imported` is `"*"` for a namespace. */
   imports: Map<string, { source: string; imported: string }>;
+  /** `export { local as exported }` without `from`: exported name -> local. */
+  exportLists: Map<string, string>;
   /** A statement the lexer couldn't read. */
   unread: boolean;
   /** Its own top-level statements, parsed when first asked. */
@@ -204,6 +206,12 @@ export function createExportResolver(src: string): ExportResolver {
       const word = new RegExp(`\\b${name.replace(REGEXP_SPECIAL, "\\$&")}\\b`);
       return word.test(module.code) ? VALUE : null;
     }
+    // An import exported again (`import { x } from "./x"; export { x }`) is
+    // followed without parsing the module.
+    const listed = module.exportLists.get(name);
+    const binding =
+      listed === undefined ? undefined : module.imports.get(listed);
+    if (binding) return imported(key, binding.source, binding.imported);
     const body = module.body();
     if (!body) return UNKNOWN_EXPORT;
     // Breaks cycles.
@@ -367,6 +375,8 @@ export function createExportResolver(src: string): ExportResolver {
 }
 
 const REGEXP_SPECIAL = /[.*+?^${}()|[\]\\]/g;
+/** `export {}`, which the lexer returns as it does a statement it can't read. */
+const EMPTY_EXPORT = /^export\s*\{\s*\}\s*;?$/;
 
 /** Whether two exports render the same: both values, or one component. */
 function sameExport(a: Export, b: Export): boolean {
@@ -381,6 +391,7 @@ function readModule(code: string, typescript: boolean): ModuleInfo {
     namespaces: new Map(),
     stars: [],
     imports: new Map(),
+    exportLists: new Map(),
     unread: false,
     code,
     body: () => {
@@ -394,9 +405,18 @@ function readModule(code: string, typescript: boolean): ModuleInfo {
       return body;
     },
   };
-  for (const statement of lexImportsExports(code)) {
+  for (const statement of lexImportsExports(code, { exportLists: true })) {
     if (!statement.source) {
-      module.unread = true;
+      if (statement.kind === "export" && statement.specifiers.length > 0) {
+        for (const { typeOnly, local, exported } of statement.specifiers) {
+          if (!typeOnly && exported) module.exportLists.set(exported, local);
+        }
+      } else if (
+        statement.kind === "import" ||
+        !EMPTY_EXPORT.test(code.slice(statement.start, statement.end))
+      ) {
+        module.unread = true;
+      }
       continue;
     }
     if (statement.typeOnly) continue;
