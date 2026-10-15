@@ -155,7 +155,7 @@ For a package that wraps severan and reports under its own name. `severan()` rep
 | Field | Default | |
 |:---|:---|:---|
 | `plugin` | `"severan"` | Names the plugin in errors, and webpack's hooks and logger. |
-| `failure.feature` | `"severan"` | Names what a failed analysis turns off, in its warning and the `report` heading. |
+| `failure.feature` | `"severan"` | Names what a failed analysis turns off, in its warning and the `report` heading (after `tool`, unless they're the same). |
 | `failure.fallback` | `"components were bundled unchanged"` | What happens instead, in that warning. |
 | `id` | `"severan"` | `severan()` only: the plugin's name in the bundler. |
 | `loader` | the bundled loader | webpack only: the path of the loader to add. |

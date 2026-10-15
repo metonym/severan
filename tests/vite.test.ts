@@ -68,12 +68,16 @@ const UNREAD_BARREL =
 const UNREAD_ALIAS = /can't read how src[\\/]App\.svelte imports `@carbon`/;
 
 /** A project with `src/App.svelte` and Carbon linked into its `node_modules`. */
-function setUp(app: string, options?: SeveranOptions) {
+function setUp(
+  app: string,
+  options?: SeveranOptions,
+  names?: Parameters<typeof severan>[2],
+) {
   const project = createFakeProject();
   const carbon = project.linkCarbon();
   mkdirSync(path.join(project.root, "src"));
   writeFileSync(path.join(project.root, "src", "App.svelte"), app);
-  const plugin = severan(CARBON, options) as unknown as ResolvedPlugin;
+  const plugin = severan(CARBON, options, names) as unknown as ResolvedPlugin;
   plugin.configResolved({ root: project.root });
   return { project, carbon, plugin };
 }
@@ -173,6 +177,27 @@ describe("severan/vite", () => {
       expect(report).toContain("severan report");
       expect(report).toMatch(BUTTON_REPORT);
       expect(report).toContain('kind             "tertiary"');
+    } finally {
+      log.mockRestore();
+      project.dispose();
+    }
+  });
+
+  test("a wrapper's `report` heading names its tool and feature", async () => {
+    const { project, plugin } = setUp(
+      `<script>${IMPORT_BUTTON}</script>\n<Button kind="tertiary">Save</Button>`,
+      { report: true, silent: true },
+      {
+        id: "carbon",
+        plugin: "optimizeComponents",
+        failure: { feature: "optimizeComponents", fallback: "unchanged" },
+      },
+    );
+    const log = jest.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await plugin.buildStart.call(context());
+      const report = log.mock.calls.map(([line]) => line).join("\n");
+      expect(report).toContain("severan optimizeComponents report");
     } finally {
       log.mockRestore();
       project.dispose();
