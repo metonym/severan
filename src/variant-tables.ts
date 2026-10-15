@@ -92,7 +92,7 @@ async function scanLibrary(library: Library): Promise<Scan> {
   const signature = await packageSignature(library.root, library.spec.srcDir);
   const cached = scanCache.get(library.src);
   if (cached?.signature === signature) return cached.scan;
-  const scan = await scanUncached(library);
+  const scan = await scanVariantTables(library);
   scanCache.set(library.src, { signature, scan });
   return scan;
 }
@@ -268,7 +268,8 @@ function lex(file: string, code: string): Lexed {
   return lexed;
 }
 
-async function scanUncached(library: Library): Promise<Scan> {
+/** Every table in `library` and what reads it, uncached. */
+export async function scanVariantTables(library: Library): Promise<Scan> {
   const { src } = library;
   const files = await listJsAndSvelteFiles(src);
   const codes = await Promise.all(
