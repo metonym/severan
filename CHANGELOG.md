@@ -18,6 +18,13 @@
 - Builds fail when a module outside the library imports a script module
   whose tables were rewritten (through an alias).
 
+**Fixes**
+
+- A rewrite no longer changes the namespace Svelte 5 infers for a block or
+  a component's root: unwrapping an `<svg>` into a block, or removing the
+  branch with a fragment's only HTML element, could make it SVG and drop
+  the whitespace between its nodes (flowbite-svelte's `BreadcrumbItem`).
+
 ## 0.2.0
 
 **Features**
