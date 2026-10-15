@@ -22,6 +22,7 @@ import {
   sliceOf,
   splice,
 } from "./mapped-text";
+import { FOREIGN_ELEMENT, namespacesChanged } from "./namespaces";
 import {
   isAlwaysNullish,
   isEmptyArray,
@@ -675,11 +676,23 @@ export function specializeComponent(
   };
 
   const folded = rewrite(0, code.length);
+  let parsed = folded.text === code ? ast : undefined;
+  // Unwrapping a block, or removing the branch with a fragment's only HTML,
+  // can change the namespace Svelte infers for it. Without unwrapping, or
+  // else not at all.
+  if (applied > 0 && FOREIGN_ELEMENT.test(code)) {
+    parsed = parse(folded.text, { comments: false, css: false });
+    if (namespacesChanged(ast, parsed, folded)) {
+      return unwrap
+        ? specializeComponent(scope, { ...options, unwrap: false })
+        : unchanged(code);
+    }
+  }
   const { mapped, dropped } = cleanUp(
     folded,
     options?.dropUnused !== false,
     applied > 0,
-    folded.text === code ? ast : undefined,
+    parsed,
   );
   let unrendered: string[] | undefined;
   return {
@@ -691,6 +704,16 @@ export function specializeComponent(
       unrendered ??= applied > 0 ? unrenderedImports(mapped.text) : [];
       return unrendered;
     },
+  };
+}
+
+function unchanged(code: string): Specialization {
+  return {
+    code,
+    mapped: sliceOf(code, 0, code.length),
+    edits: 0,
+    dropped: 0,
+    unrendered: () => [],
   };
 }
 

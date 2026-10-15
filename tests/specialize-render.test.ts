@@ -831,3 +831,65 @@ export { Card, card };`,
     expect(after).toBe(before);
   });
 });
+
+// Svelte 5 infers a fragment's namespace from what it holds: a block whose
+// direct elements are all SVG drops the whitespace between its nodes. A
+// rewrite that would change what's inferred keeps the block, or the branch.
+describe("namespaces Svelte infers", () => {
+  const SHAPES: Record<string, string> = {
+    "an unwrapped SVG in a block": `<script>
+  let { home = false, icon, href } = $props();
+</script>
+<li>
+  {#if home}
+    <a href="/">home</a>
+  {:else}
+    {#if icon}
+      {@render icon()}
+    {:else}
+      <svg></svg>
+    {/if}
+
+    {#if href}
+      <a {href}>link</a>
+    {:else}
+      <span>page</span>
+    {/if}
+  {/if}
+</li>`,
+    "the only HTML branch removed from a component's root": `<script>
+  let { kind = "a" } = $props();
+</script>
+<svg></svg>
+{#if kind === "a"}<span>a</span>{/if}
+<svg></svg>`,
+    "HTML unwrapped into an SVG block": `<script>
+  let { open = true, kind = "a" } = $props();
+</script>
+<div>
+  {#if open}
+    <svg></svg>
+    {#if kind === "a"}<span>a</span>{:else}<b>b</b>{/if}
+    <svg></svg>
+  {/if}
+</div>`,
+  };
+  const cases = Object.keys(SHAPES).flatMap((name): [string, boolean][] => [
+    [name, false],
+    [name, true],
+  ]);
+  test.each(cases)("%s (unwrap: %p)", async (name, unwrap) => {
+    const { before, after } = await renderSpecialized(
+      {
+        lib: { "Shape.svelte": SHAPES[name] },
+        // A `home` and an `href` it can't read keep their blocks.
+        app: appRendering(
+          '<Shape kind="b" home={flag} href={link} />',
+          "let { flag, link } = $props();",
+        ),
+      },
+      { unwrap },
+    );
+    expect(after).toBe(before);
+  });
+});
