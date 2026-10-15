@@ -23,7 +23,7 @@ try {
   // The plugins load the parser only when a build starts: nothing their
   // entries import statically may hold it.
   const RELATIVE_IMPORT = /\bfrom\s*"(\.\/[^"]+)"/g;
-  for (const entry of ["vite.js", "webpack.js"]) {
+  for (const entry of ["vite.js", "webpack.js", "internal.js"]) {
     const seen = new Set<string>();
     const pending = [entry];
     for (let file = pending.pop(); file; file = pending.pop()) {

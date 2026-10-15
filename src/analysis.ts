@@ -1,5 +1,5 @@
 /** The usage analysis and the rewrites it drives. The plugins load it lazily. */
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import {
   analyzeUsage,
@@ -10,14 +10,19 @@ import { type AppUsage, collectAppUsage } from "./app-usage";
 import { type ModuleUsage, readLibraryImport } from "./call-sites";
 import type { Scope } from "./evaluate";
 import { type Library, loadLibrary } from "./library";
-import { type LibrarySpec, libraryPaths } from "./library-paths";
+import {
+  type LibraryImport,
+  type LibrarySpec,
+  libraryPaths,
+} from "./library-paths";
 import { type SourceMap, toSourceMap } from "./mapped-text";
 import {
   type Specialization,
   type SpecializeOptions,
   specializeComponent,
 } from "./specialize";
-import { errorMessage, realpath } from "./util";
+import type { CallSite } from "./usage";
+import { errorMessage, isSvelteFile, realpath, stripQuery } from "./util";
 import { formatValue, UNKNOWN } from "./values";
 
 export type UsageResult = {
@@ -37,6 +42,151 @@ function failure(
   { feature, fallback }: Failure,
 ): string {
   return `${libraryPaths(spec).logPrefix} ${feature} could not analyze this build (${errorMessage(error)}); ${fallback}.`;
+}
+
+const NODE_MODULES = /[\\/]node_modules[\\/]/;
+
+/**
+ * A bundled module as the analysis reads it: a `.svelte` file's source from
+ * disk, anything else as the bundler hands it over. `undefined` for a
+ * `.svelte` file's sub-module (`?svelte&type=style`).
+ */
+function readModuleSource(
+  spec: LibrarySpec,
+  id: string,
+  code: string,
+): { file: string; code: string } | undefined {
+  const file = stripQuery(id);
+  if (!isSvelteFile(file)) {
+    // A dependency can't import the app's own components, and its computed
+    // `import()`s aren't the app's: read it for the library only.
+    if (NODE_MODULES.test(file) && !code.includes(spec.name)) {
+      return undefined;
+    }
+    return { file, code };
+  }
+  if (file !== id) return undefined;
+  try {
+    return { file, code: readFileSync(file, "utf8") };
+  } catch {
+    // Virtual or generated: read its compiled code as a script.
+    return { file: `${file}.js`, code };
+  }
+}
+
+/**
+ * Collects call sites module by module during a build, then analyzes them
+ * against the library modules the bundle holds.
+ */
+export function createUsageCollector(
+  spec: LibrarySpec,
+  projectRoot: string,
+  failed: Failure,
+) {
+  const library = loadLibrary(spec, projectRoot);
+  const modules = new Map<string, { file: string; code: string }>();
+
+  return {
+    /** `code` is what the bundler hands the plugin. */
+    add(id: string, code: string): void {
+      const source = readModuleSource(spec, id, code);
+      if (source) modules.set(id, source);
+      else modules.delete(id);
+    },
+    /** Forgets modules no longer in the build (`vite build --watch`). */
+    retain(graph: Set<string>): void {
+      for (const id of modules.keys()) if (!graph.has(id)) modules.delete(id);
+    },
+    /**
+     * `bundledIds` are the library's `.svelte` module paths in the bundle;
+     * `imports`, the module graph's edges into the library. A component
+     * imported in a way the analysis didn't read (an alias) keeps every
+     * variant.
+     */
+    async analyze(
+      bundledIds: Iterable<string>,
+      options: UsageOptions,
+      imports: Iterable<LibraryImport>,
+    ): Promise<UsageResult | { warning: string }> {
+      try {
+        const bundled = new Set<string>();
+        for (const id of bundledIds) {
+          const key = library.moduleKey(id);
+          if (key) bundled.add(key);
+        }
+        const appUsage = collectAppUsage(modules.values(), library);
+        const unread = unreadImports(library, appUsage, imports);
+        return toResult(
+          await analyzeUsage({
+            library,
+            bundled,
+            modules: unread ? [...appUsage.modules, unread] : appUsage.modules,
+            options,
+          }),
+          library,
+        );
+      } catch (error) {
+        return { warning: failure(spec, error, failed) };
+      }
+    },
+  };
+}
+
+export type UsageCollector = ReturnType<typeof createUsageCollector>;
+
+const UNREAD_IMPORT = "imported in a way the analysis can't read (an alias?)";
+
+function openSite(component: string, reason: string, file?: string): CallSite {
+  return {
+    component,
+    open: true,
+    props: new Map(),
+    slots: null,
+    ...(file !== undefined && { location: { file, line: 1 } }),
+    reason,
+  };
+}
+
+function emptyModule(): ModuleUsage {
+  return { sites: [], openAll: false, providedContexts: new Set() };
+}
+
+/**
+ * Open sites for the library modules `edges` import that `appUsage` didn't
+ * read the import of, or `undefined` if it read them all. An unread import
+ * of the barrel opens every component.
+ */
+function unreadImports(
+  library: Library,
+  appUsage: AppUsage,
+  edges: Iterable<LibraryImport>,
+): ModuleUsage | undefined {
+  const unread = emptyModule();
+  for (const { id, importer, specifier } of edges) {
+    const key = library.importKey(id);
+    const file = stripQuery(importer);
+    if (!key || library.moduleKey(file)) continue;
+    if (
+      (specifier === undefined || library.isSpecifier(specifier)) &&
+      readLibraryImport(library, appUsage.read.get(file), key)
+    ) {
+      continue;
+    }
+    if (key === library.barrelKey) unread.openAll = true;
+    else unread.sites.push(openSite(key, UNREAD_IMPORT, file));
+  }
+  return unread.openAll || unread.sites.length > 0 ? unread : undefined;
+}
+
+function toResult(analysis: UsageAnalysis, library: Library): UsageResult {
+  return {
+    analysis,
+    library,
+    liveComponents: new Set(
+      [...analysis.liveComponents].map((key) => path.posix.parse(key).name),
+    ),
+    isPruned: analysis.isPruned,
+  };
 }
 
 /** `components` (names or paths) is the bundle; one no file renders keeps every variant. */
@@ -80,36 +230,34 @@ async function analyzeBundle(
     modules.flatMap((module) => module.sites.map((site) => site.component)),
   );
   const keys = new Set(bundled);
-  const unseen: ModuleUsage = {
-    sites: [],
-    openAll: false,
-    providedContexts: new Set(),
-  };
+  const unseen = emptyModule();
   for (const component of keys) {
     if (!rendered.has(component)) {
-      unseen.sites.push({
-        component,
-        open: true,
-        props: new Map(),
-        slots: null,
-        reason: "not found in `content`",
-      });
+      unseen.sites.push(openSite(component, "not found in `content`"));
     }
   }
-  const analysis = await analyzeUsage({
+  return toResult(
+    await analyzeUsage({
+      library,
+      bundled: keys,
+      modules: [...modules, unseen],
+      options,
+    }),
     library,
-    bundled: keys,
-    modules: [...modules, unseen],
-    options,
-  });
-  return {
-    analysis,
-    library,
-    liveComponents: new Set(
-      [...analysis.liveComponents].map((key) => path.posix.parse(key).name),
-    ),
-    isPruned: analysis.isPruned,
-  };
+  );
+}
+
+/** Per component, the prop values the app passes and why some stay open. */
+export function formatPropAwareReport(
+  result: UsageResult,
+  prunedClasses: ReadonlySet<string>,
+  root: string,
+): string[] {
+  return [
+    "  Prop-aware:",
+    ...formatCallSites(result, root),
+    `    Classes pruned by props: ${prunedClasses.size}`,
+  ];
 }
 
 function nameOf(result: UsageResult, key: string): string {

@@ -1,100 +1,9 @@
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { lexComponent, lexImportsExports } from "sveast/lexer";
 import { extractIdentifiers } from "sveast/walk";
 import { forEachNode, type Node, parse } from "./ast";
-
-type PackageExport = {
-  /** Direct import path, e.g. `some-library/src/Button/Button.svelte`. */
-  path: string;
-  name: string;
-};
-
-type ReExport = { readonly local: string; readonly source: string };
-
-/** A name that can be written unquoted in an import or export specifier. */
-const IDENTIFIER_NAME = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200c\u200d]*$/u;
-
-/** Hops from the barrel to a definition before giving up, against cycles. */
-const MAX_HOPS = 8;
-
-function readReExports(file: string): Map<string, ReExport> {
-  const reExports = new Map<string, ReExport>();
-  for (const statement of lexImportsExports(readFileSync(file, "utf8"))) {
-    if (statement.kind !== "export" || !statement.source) continue;
-    for (const { kind, local, exported } of statement.specifiers) {
-      if (
-        kind === "named" &&
-        exported !== null &&
-        IDENTIFIER_NAME.test(local) &&
-        IDENTIFIER_NAME.test(exported)
-      ) {
-        reExports.set(exported, { local, source: statement.source.value });
-      }
-    }
-  }
-  return reExports;
-}
-
-function resolveModule(from: string, source: string): string | undefined {
-  const base = path.resolve(path.dirname(from), source);
-  return [
-    base,
-    `${base}.js`,
-    `${base}.svelte`,
-    path.join(base, "index.js"),
-  ].find(
-    (file) => statSync(file, { throwIfNoEntry: false })?.isFile() === true,
-  );
-}
-
-function relativeKey(src: string, file: string): string {
-  return path.relative(src, file).split(path.sep).join("/");
-}
-
-/** Barrel exports of package `name`, followed through `index.js` re-export chains to their definitions. */
-export function readPackageExports(
-  root: string,
-  {
-    name: packageName,
-    srcDir,
-    barrel: barrelFile,
-  }: { name: string; srcDir: string; barrel: string },
-): Map<string, PackageExport> {
-  const src = path.join(root, srcDir);
-  const barrel = path.join(src, barrelFile);
-  const reExportsByFile = new Map<string, Map<string, ReExport>>();
-  const reExportsOf = (file: string): Map<string, ReExport> => {
-    let reExports = reExportsByFile.get(file);
-    if (!reExports) {
-      reExports = readReExports(file);
-      reExportsByFile.set(file, reExports);
-    }
-    return reExports;
-  };
-
-  const exports = new Map<string, PackageExport>();
-  for (const [exported, reExport] of reExportsOf(barrel)) {
-    let file = resolveModule(barrel, reExport.source);
-    let name = reExport.local;
-    for (let hop = 0; file && hop < MAX_HOPS; hop++) {
-      // A default export, or any `.svelte` module, is the definition.
-      if (name === "default" || !file.endsWith(".js")) break;
-      const next = reExportsOf(file).get(name);
-      if (!next) break;
-      const target = resolveModule(file, next.source);
-      if (!target) break;
-      file = target;
-      name = next.local;
-    }
-    if (!file) continue;
-    exports.set(exported, {
-      path: `${packageName}/${srcDir}/${relativeKey(src, file)}`,
-      name,
-    });
-  }
-  return exports;
-}
+import { relativeKey, resolveModule } from "./package-exports";
 
 /** What a name a library module exports is, to what renders it. */
 export type Export =
@@ -134,7 +43,7 @@ export function memberOf(exported: Export, path: readonly string[]): Export {
 }
 
 type ModuleInfo = {
-  reExports: Map<string, ReExport>;
+  reExports: Map<string, { source: string; local: string }>;
   /** `export * as name from "source"`, by name. */
   namespaces: Map<string, string>;
   /** `export * from "source"`. */

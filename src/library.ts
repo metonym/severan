@@ -4,10 +4,10 @@ import {
   createExportResolver,
   type Export,
   type ExportResolver,
-  readPackageExports,
 } from "./exports";
 import { LibraryPaths, type LibrarySpec, libraryPaths } from "./library-paths";
 import { installedMajor, requirePackageDir } from "./package";
+import { readPackageExports } from "./package-exports";
 
 export class Library extends LibraryPaths {
   readonly root: string;

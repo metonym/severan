@@ -5,6 +5,8 @@
     "src/vite.ts",
     "src/webpack.ts",
     "src/loader.ts",
+    "src/internal.ts",
+    "src/internal-analysis.ts",
     "scripts/*.ts",
     "bench/*.ts",
     "tests/*.ts"

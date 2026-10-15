@@ -2,11 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  type LibraryImport,
-  type LibrarySpec,
-  libraryPaths,
-} from "./library-paths";
+import { type LibrarySpec, libraryPaths } from "./library-paths";
 import { optimizerRegistry } from "./loader";
 import {
   createComponentOptimizer,
@@ -16,21 +12,16 @@ import {
   type SeveranOptions,
 } from "./optimizer";
 import { RE_EXT_SVELTE } from "./util";
+import {
+  importEdges,
+  isProduction,
+  moduleSource,
+  type WebpackConnection,
+  type WebpackModule,
+} from "./webpack-util";
 
 // Structural subsets of the webpack/Rspack APIs this plugin uses, so it
 // works with either bundler without depending on either package.
-
-type WebpackModule = {
-  resource?: unknown;
-  /** On `NormalModule`: the loader output. */
-  originalSource?: () => { source(): string | Buffer } | null | undefined;
-};
-
-type WebpackConnection = {
-  originModule?: WebpackModule | null;
-  /** `request` is the specifier the import was written with. */
-  dependency?: { type?: string; request?: unknown } | null;
-};
 
 type AsyncHook = {
   tapPromise(name: string, callback: () => Promise<void>): void;
@@ -107,39 +98,6 @@ function resolveWith(compiler: WebpackCompiler): ImportResolver | undefined {
     });
 }
 
-/** The loader output of `module`, if it has one as text. */
-function moduleSource(module: WebpackModule): string | undefined {
-  let source: string | Buffer | undefined;
-  try {
-    source = module.originalSource?.()?.source();
-  } catch {
-    // Some module types throw when asked for a source.
-  }
-  return typeof source === "string" || Buffer.isBuffer(source)
-    ? source.toString()
-    : undefined;
-}
-
-/** The edges into library module `id` from modules with a file. */
-function importEdges(
-  id: string,
-  connections: Iterable<WebpackConnection>,
-): LibraryImport[] {
-  const edges: LibraryImport[] = [];
-  for (const { originModule, dependency } of connections) {
-    const importer = originModule?.resource;
-    const request = dependency?.request;
-    if (typeof importer === "string") {
-      edges.push({
-        id,
-        importer,
-        specifier: typeof request === "string" ? request : undefined,
-      });
-    }
-  }
-  return edges;
-}
-
 /** The built loader next to this file, or its source in a checkout. */
 const LOADER = (() => {
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -178,7 +136,7 @@ export class SeveranPlugin {
     // Plugins apply before the bundler fills in its defaults, and an unset
     // `mode` means production. The dev server's single-module rebuilds
     // would leave rewritten components stale.
-    if ((compiler.options.mode ?? "production") !== "production") return;
+    if (!isProduction(compiler)) return;
 
     const { WebpackError } = compiler.webpack;
     const { spec } = this;

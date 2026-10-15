@@ -11,6 +11,10 @@ const entries = {
   webpack: resolve(root, "src/webpack.ts"),
   // An entry of its own: `SeveranPlugin` hands webpack and Rspack its path.
   loader: resolve(root, "src/loader.ts"),
+  // Unstable, for carbon-preprocess-svelte: `internal` never loads the
+  // parser, `internal-analysis` does.
+  internal: resolve(root, "src/internal.ts"),
+  "internal-analysis": resolve(root, "src/internal-analysis.ts"),
 };
 const SVELTE_IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*)["']svelte/;
 
@@ -47,12 +51,13 @@ for (const file of await readdir(outDir)) {
 // One declaration file per public entry, holding only what its exports
 // reference: the analysis's own types (and sveast's) stay out.
 await Promise.all(
-  (["index", "vite", "webpack"] as const).map((name) =>
-    bundleDts({
-      root,
-      source: entries[name],
-      outFile: resolve(outDir, `${name}.d.ts`),
-    }),
+  (["index", "vite", "webpack", "internal", "internal-analysis"] as const).map(
+    (name) =>
+      bundleDts({
+        root,
+        source: entries[name],
+        outFile: resolve(outDir, `${name}.d.ts`),
+      }),
   ),
 );
 
@@ -87,6 +92,16 @@ await writeFile(
           types: "./webpack.d.ts",
           import: "./webpack.js",
           default: "./webpack.js",
+        },
+        "./internal": {
+          types: "./internal.d.ts",
+          import: "./internal.js",
+          default: "./internal.js",
+        },
+        "./internal/analysis": {
+          types: "./internal-analysis.d.ts",
+          import: "./internal-analysis.js",
+          default: "./internal-analysis.js",
         },
       },
     },
