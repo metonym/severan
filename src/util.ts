@@ -2,6 +2,8 @@ import { realpathSync } from "node:fs";
 
 export const RE_EXT_SVELTE = /\.svelte$/;
 
+export const RE_EXT_JS = /\.js$/;
+
 const RE_MODULE_QUERY = /[?#].*$/;
 
 /** `.css` and the preprocessor files a bundler compiles to CSS. */

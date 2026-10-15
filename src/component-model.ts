@@ -221,8 +221,14 @@ const scriptCache = new Map<
   { mtimeMs: number; checked: number; model: ComponentModel | undefined }
 >();
 
+/** What a `.js` module's model wraps its code in: offsets in it are shifted by its length. */
+export const SCRIPT_MODULE_PREFIX = '<script context="module">\n';
+
 /** An importer may change any name a `.js` module exports, so those all escape. */
-function loadScriptModel(src: string, key: string): ComponentModel | undefined {
+export function loadScriptModel(
+  src: string,
+  key: string,
+): ComponentModel | undefined {
   const file = path.join(src, key);
   const cached = scriptCache.get(file);
   if (cached?.checked === analysisCount) return cached.model;
@@ -234,7 +240,7 @@ function loadScriptModel(src: string, key: string): ComponentModel | undefined {
   let model: ComponentModel | undefined;
   try {
     model = buildComponentModel(
-      `<script context="module">\n${readFileSync(file, "utf8")}\n</script>`,
+      `${SCRIPT_MODULE_PREFIX}${readFileSync(file, "utf8")}\n</script>`,
       key,
       libraryResolver(src),
     );

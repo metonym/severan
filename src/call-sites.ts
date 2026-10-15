@@ -19,7 +19,7 @@ import {
   type SiteReader,
 } from "./live-walk";
 import { type CallSite, type ComponentUsage, newComponentUsage } from "./usage";
-import { importKey } from "./util";
+import { importKey, RE_EXT_STYLESHEET } from "./util";
 import {
   EMPTY_ARRAY,
   isEmptyArray,
@@ -46,6 +46,8 @@ export type ModuleUsage = {
   readsLibraryContext?: boolean;
   file?: string;
   libraryImports?: LibraryImports;
+  /** Names it imports from the barrel that aren't components; `"any"` if it may read any. */
+  libraryValues?: Set<string> | "any";
 };
 
 type LibraryImports = {
@@ -172,6 +174,8 @@ function readDynamicImports(
     if (direct) {
       bindings.dynamic.push(direct);
       bindings.libraryImports.components.add(direct);
+    } else if (source !== library.name && library.isSpecifier(source)) {
+      bindings.anyValue = true;
     }
     const resolved = app && resolveAppImport(library, app, source);
     if (resolved) bindings.openAppComponents.push(...resolved.keys);
@@ -227,6 +231,9 @@ type ImportBindings = {
   openAppComponents: string[];
   openApps: boolean;
   libraryImports: LibraryImports;
+  values: Set<string>;
+  /** A namespace or subpath import: it may read any of the library's values. */
+  anyValue: boolean;
 };
 
 function newBindings(): ImportBindings {
@@ -240,7 +247,13 @@ function newBindings(): ImportBindings {
     openAppComponents: [],
     openApps: false,
     libraryImports: { components: new Set(), barrel: false },
+    values: new Set(),
+    anyValue: false,
   };
+}
+
+function libraryValues(bindings: ImportBindings): Set<string> | "any" {
+  return bindings.anyValue ? "any" : bindings.values;
 }
 
 function readImports(
@@ -263,6 +276,14 @@ function readImports(
     const appImport = app && resolveAppImport(library, app, from);
     if (isBarrel) bindings.libraryImports.barrel = true;
     if (directKey) bindings.libraryImports.components.add(directKey);
+    if (
+      !isBarrel &&
+      !directKey &&
+      library.isSpecifier(from) &&
+      !RE_EXT_STYLESHEET.test(from)
+    ) {
+      bindings.anyValue = true;
+    }
 
     if (statement.kind === "export") {
       for (const specifier of statement.specifiers) {
@@ -271,6 +292,7 @@ function readImports(
         const exported = isBarrel ? library.exportOf(specifier.local) : null;
         if (exported && exported.kind !== "component") {
           if (exported.kind !== "value") bindings.openAll = true;
+          else bindings.values.add(specifier.local);
           continue;
         }
         const key = exported ? exported.key : directKey;
@@ -294,6 +316,7 @@ function readImports(
           bindings.openAppComponents.push(...appImport.keys);
         }
       } else if (isBarrel) {
+        if (specifier.kind === "namespace") bindings.anyValue = true;
         const exported: Export =
           specifier.kind === "namespace"
             ? { kind: "members", member: (name) => library.exportOf(name) }
@@ -303,6 +326,8 @@ function readImports(
           bindings.libraryImports.components.add(exported.key);
         } else if (exported.kind !== "value") {
           bindings.exports.set(specifier.local, exported);
+        } else {
+          bindings.values.add(specifier.imported);
         }
       } else if (directKey && specifier.kind === "default") {
         bindings.components.set(specifier.local, directKey);
@@ -350,6 +375,7 @@ export function collectScriptUsage(
     ...contextUsage(library, code),
     file,
     libraryImports: bindings.libraryImports,
+    libraryValues: libraryValues(bindings),
   };
 }
 
@@ -367,12 +393,14 @@ export function collectImportedUsage(
   const bindings = newBindings();
   const app = apps && { from: file, apps };
   readDynamicImports(code, library, bindings, app);
+  const values = new Set<string>();
   const usage: ModuleUsage = {
     sites: bindings.dynamic.map((key) => openSite(key, file, reason)),
     openAll: bindings.openAll,
     ...contextUsage(library, code),
     file,
     libraryImports: bindings.libraryImports,
+    libraryValues: values,
   };
   if (app) {
     // Every `.svelte` path it names, imported or not, renders with any props.
@@ -405,9 +433,12 @@ export function collectImportedUsage(
         bindings.libraryImports.components.add(exported.key);
       } else if (exported.kind !== "value") {
         usage.openAll = true;
+      } else {
+        values.add(name.split(IMPORT_AS)[0]);
       }
     }
   }
+  if (library.patterns.valueSubpath.test(code)) usage.libraryValues = "any";
   for (const match of code.matchAll(library.patterns.barrelSpecifier)) {
     bindings.libraryImports.barrel = true;
     if (!understood.has(match.index)) usage.openAll = true;
@@ -639,6 +670,7 @@ export function collectSvelteUsage(
     ...contextUsage(library, code),
     file,
     libraryImports: bindings.libraryImports,
+    libraryValues: libraryValues(bindings),
   };
   const rendered = new Set<string>();
   const line = (node: { start: number }) => locate(code, node.start).line;

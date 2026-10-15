@@ -35,6 +35,8 @@ If your app only ever writes `<Button kind="ghost">`, Svelte compiles this inste
 {/if}
 ```
 
+Libraries that keep their classes in [tailwind-variants](https://www.tailwind-variants.org/) tables (`tv({ variants: { color: { red: "…", green: "…" } } })`) get those tables rewritten too: keys no live call can select are removed, and a table nothing calls keeps no classes.
+
 It runs on production builds, in Vite, Rollup, Rolldown, webpack and Rspack, for Svelte 3, 4 and 5 (runes included). Rewritten components come with source maps back to their original source.
 
 ```sh
@@ -122,7 +124,7 @@ class SeveranPlugin {
 }
 ```
 
-A webpack 5 and Rspack plugin. It does nothing unless `mode` is `"production"` (an unset `mode` counts). It adds a pre-loader on `.svelte` files, so `svelte-loader` compiles the rewritten source wherever the plugin sits in `plugins`, analyzes `content` on `beforeRun` and `watchRun`, and checks the module graph on `finishModules`.
+A webpack 5 and Rspack plugin. It does nothing unless `mode` is `"production"` (an unset `mode` counts). It adds a pre-loader on `.svelte` files and the library's script modules, so `svelte-loader` compiles the rewritten source wherever the plugin sits in `plugins`, analyzes `content` on `beforeRun` and `watchRun`, and checks the module graph on `finishModules`.
 
 ### `LibrarySpec`
 
@@ -193,9 +195,10 @@ It never throws: if the analysis fails, it resolves to `{ warning }` and nothing
 
 | Field | Type | |
 |:---|:---|:---|
-| `sources` | `Map<string, { code: string; map: SourceMap }>` | Rewritten components by the real path of their source, each with a v3 source map. Serve these instead of the files on disk. |
-| `edits` | `number` | Edits made, across `sources`. |
+| `sources` | `Map<string, { code: string; map: SourceMap }>` | Rewritten components and script modules by the real path of their source, each with a v3 source map. Serve these instead of the files on disk. |
+| `edits` | `number` | Edits made to components, across `sources`. |
 | `apps` | `number` | How many of `sources` are the app's own components. |
+| `tables` | `{ modules, pruned, emptied, keys, compounds }` | The tailwind-variants tables rewritten: how many of `sources` are their modules, tables pruned and emptied, and variant keys and compound variants removed. |
 | `closed` | `Set<string>` | App components whose props came from their call sites in `files`. Nothing outside `files` may render them; the plugins check it. |
 | `report` | `() => string[]` | The lines `report: true` prints. |
 | `readImport` | `(importer, id) => boolean` | Whether the analysis read file `importer`'s import of library module `id` (both real paths). `false` means an import it can't see, such as one through a bundler alias. |
@@ -221,7 +224,8 @@ Every message starts with `` `${tool}:` ``.
   - a file outside `content` imports the library: add it to `content`;
   - an analyzed file imports the library through an alias the analysis can't read (`import { Button } from "@lib"`): import it from the package name;
   - a virtual module (no file on disk) imports the library: import it from a file in `content`;
-  - a module outside `content` renders an app component whose props were read from its call sites: add it to `content`.
+  - a module outside `content` renders an app component whose props were read from its call sites: add it to `content`;
+  - a module outside the library imports one of its script modules whose tailwind-variants tables were rewritten (through an alias, for example): import them from the package name.
 
 ## How it stays safe
 
@@ -232,6 +236,7 @@ Every message starts with `` `${tool}:` ``.
 - A component whose props something other than a call site can set keeps every value: a custom element, or one bound with `bind:this` whose instance the app uses for more than calling what it exports (`$set`, an accessor, handing it on).
 - Content counts: snippets are props, and content outside them is `children` on Svelte 5 and a slot on Svelte 3 and 4.
 - An export of the library it can't tell apart from a component (a function that may return one) keeps every component.
+- A tailwind-variants table keeps every key when something other than a live component's call can read it: the app imports it, another table extends it, a script module reads it, a namespace or `import()` reaches it, or a component hands on what a call with slots returns. A variant whose value at some call the analysis can't evaluate (a spread, a function's parameter) keeps every key. A table nothing calls is emptied only when nothing else can read it, and a script module that mounts a component keeps every table whole.
 
 The app's own components are rewritten too, when every file that renders them is in `content`: a wrapper's props come from its call sites, so `<Card tone="danger">` reaches the `Button` inside it.
 
@@ -255,16 +260,17 @@ How much it saves depends on how a library is written. Gzipped client JS on a re
 |:---|:---|:---|
 | carbon-components-svelte | branches on props | 16.5% |
 | @sveltestrap/sveltestrap | branches on props | 15.0% |
-| flowbite-svelte | Tailwind variants | 5.7% |
+| flowbite-svelte | Tailwind variants | 30.4% |
+| svelte-5-ui-lib | Tailwind variants | 16.1% |
 | svelte-ux | Tailwind | 4.0% |
-| svelte-5-ui-lib | Tailwind variants | 3.8% |
 | bits-ui | headless, state in classes | 1.8% |
 | @skeletonlabs/skeleton-svelte | headless, state machines | 0% |
 
-Libraries whose markup branches on their props gain the most. Headless libraries that keep their state in classes or hand their props to a state machine leave little to fold.
+Libraries whose markup branches on their props gain the most, and so do those whose tailwind-variants tables hold every variant's classes. Headless libraries that keep their state in classes or hand their props to a state machine leave little to fold.
 
 ## Limitations
 
 - **Production builds only.** The analysis runs for the whole app before the build, so dev serving and HMR are left alone.
+- **tailwind-variants tables only in the library's `.js` modules**, made with `tv` imported from `tailwind-variants`. Tables defined in components, or with `createTV`, keep every class.
 - **Every importer must be in `content`.** A module outside it that imports the library fails the build rather than ship components rewritten without its call sites.
 - **Values it can't evaluate stay open.** Props read from a whole `$props()` object, or state held in classes (`.svelte.js`), keep every value.

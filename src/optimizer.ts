@@ -159,6 +159,8 @@ function newBuild(root: string) {
     escaped: new Map<string, string[]>(),
     /** Analyzed files, by name, and the imports of the library in them it didn't read. */
     unread: new Map<string, Set<string>>(),
+    /** Rewritten script modules, by name, and what imports them from outside the library. */
+    scriptImporters: new Map<string, Set<string>>(),
     readImport: (() => true) as SpecializedComponents["readImport"],
     realpaths: new Map<string, string | undefined>(),
   };
@@ -249,7 +251,7 @@ export function createComponentOptimizer(
       return {
         info: options?.silent
           ? undefined
-          : `rewrote ${result.sources.size - result.apps} ${label} components${result.apps > 0 ? ` and ${result.apps} of the app's own` : ""} for this app (${result.edits} edits)`,
+          : `rewrote ${result.sources.size - result.apps - result.tables.modules} ${label} components${result.apps > 0 ? ` and ${result.apps} of the app's own` : ""}${result.tables.modules > 0 ? ` and ${result.tables.pruned + result.tables.emptied} tailwind-variants tables` : ""} for this app (${result.edits} edits)`,
         report: options?.report ? result.report() : undefined,
       };
     },
@@ -261,6 +263,7 @@ export function createComponentOptimizer(
     /** Whether `id` may be served rewritten, now or after `content` changes. */
     rewritable(id: string): boolean {
       const file = stripQuery(id);
+      if (file.endsWith(".js")) return library.moduleKey(file) !== undefined;
       return (
         file.endsWith(".svelte") &&
         (library.isComponentFile(file) || isAnalyzed(file))
@@ -288,6 +291,33 @@ export function createComponentOptimizer(
       // Named as the app imports it, without Rollup's `\0` prefix.
       if (unbacked) build.virtual.add(id.replace(ROLLUP_VIRTUAL_PREFIX, ""));
       else build.missed.add(relative(file));
+    },
+
+    /**
+     * A rewritten script module (its tailwind-variants tables) may only be
+     * imported by the library: the analysis reads the app's imports of the barrel.
+     */
+    checkScriptImporters(
+      id: string,
+      importers: Array<string | undefined>,
+    ): void {
+      const file = stripQuery(id);
+      if (!file.endsWith(".js") || !build.sources.has(real(file))) return;
+      for (const importer of importers) {
+        if (importer !== undefined && library.moduleKey(stripQuery(importer))) {
+          continue;
+        }
+        const name = relative(file);
+        const outside = build.scriptImporters.get(name) ?? new Set();
+        outside.add(
+          importer === undefined
+            ? "the bundler"
+            : path.isAbsolute(stripQuery(importer))
+              ? relative(stripQuery(importer))
+              : importer,
+        );
+        build.scriptImporters.set(name, outside);
+      }
     },
 
     isClosed(id: string): boolean {
@@ -351,7 +381,7 @@ export function createComponentOptimizer(
     },
 
     error(): string | undefined {
-      const { escaped, missed, unread, virtual } = build;
+      const { escaped, missed, scriptImporters, unread, virtual } = build;
       const errors: string[] = [];
       for (const [component, importers] of escaped) {
         errors.push(
@@ -366,6 +396,11 @@ export function createComponentOptimizer(
       for (const [file, imports] of unread) {
         errors.push(
           `${name} can't read how ${file} imports ${[...imports].join(", ")}, so it rewrote ${label} without that file's call sites. Import ${label} from \`${spec.name}\` there, not through an alias, or remove ${name}.`,
+        );
+      }
+      for (const [module, importers] of scriptImporters) {
+        errors.push(
+          `${name} rewrote the tailwind-variants tables in ${module} for the ${label} components that call them, but ${[...importers].join(", ")} ${importers.size === 1 ? "imports" : "import"} it directly. Import them from \`${spec.name}\` instead, or remove ${name}.`,
         );
       }
       if (virtual.size > 0) {

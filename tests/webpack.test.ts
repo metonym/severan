@@ -1,11 +1,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import webpack from "webpack";
+import type { LibrarySpec } from "../src/library-paths";
 import { optimizerRegistry } from "../src/loader";
 import { SeveranPlugin } from "../src/webpack";
 import { CARBON } from "./helpers/carbon";
 import { createFakeProject } from "./helpers/fake-project";
 import { resolvePackageRoot } from "./helpers/resolve-package-root";
+import { installTableLibrary, TVLIB } from "./helpers/tailwind-variants";
 
 const IMPORT_BUTTON = `import { Button } from "carbon-components-svelte";`;
 const SVELTE_FILE = /\.svelte$/;
@@ -19,6 +21,8 @@ const UNREAD_MODAL =
   /can't read how src[\\/]App\.svelte imports `@carbon\/src\/Modal\/Modal\.svelte`/;
 const MISSED_TOOLBAR =
   /severan rewrote Carbon components before seeing lib[\\/]toolbar\.js/;
+const TABLE_IMPORTED =
+  /rewrote the tailwind-variants tables in node_modules[\\/]tvlib[\\/]src[\\/]theme\.js .* but src[\\/]index\.js imports it directly/;
 
 /**
  * Builds `files` under a fake project with real webpack. `.svelte` files
@@ -29,9 +33,11 @@ async function build(
   files: Record<string, string>,
   mode: "production" | "development" | undefined = "production",
   resolve: webpack.Configuration["resolve"] = {},
+  library: LibrarySpec = CARBON,
 ) {
   const project = createFakeProject();
-  project.linkCarbon();
+  if (library === CARBON) project.linkCarbon();
+  else installTableLibrary(project.root);
   for (const [file, code] of Object.entries(files)) {
     mkdirSync(path.dirname(path.join(project.root, file)), { recursive: true });
     writeFileSync(path.join(project.root, file), code);
@@ -45,7 +51,7 @@ async function build(
     resolve,
     optimization: { minimize: false },
     devtool: false,
-    plugins: [new SeveranPlugin(CARBON, { silent: true })],
+    plugins: [new SeveranPlugin(library, { silent: true })],
     infrastructureLogging: { level: "none" },
   });
   const stats = await new Promise<webpack.Stats>((resolve, reject) =>
@@ -164,6 +170,40 @@ describe("SeveranPlugin", () => {
       );
     } finally {
       dispose();
+    }
+  });
+
+  test("serves tailwind-variants tables rewritten for the app", async () => {
+    const files = {
+      "src/App.svelte": `<script>import { Button } from "tvlib";</script>\n<Button color="red" />`,
+      // The source loader doesn't follow `.svelte` imports: bundle the barrel.
+      "src/index.js": `import "tvlib";\nimport App from "./App.svelte";\nconsole.log(App);`,
+    };
+    const served = await build(files, "production", {}, TVLIB);
+    try {
+      expect(served.stats.hasErrors()).toBe(false);
+      expect(served.code).toContain("bg-red");
+      expect(served.code).not.toContain("bg-green");
+    } finally {
+      served.dispose();
+    }
+
+    const aliased = await build(
+      {
+        ...files,
+        "src/index.js": `${files["src/index.js"]}\nimport { button } from "@theme";\nconsole.log(button);`,
+      },
+      "production",
+      { alias: { "@theme": "tvlib/theme.js" } },
+      TVLIB,
+    );
+    try {
+      const errors = aliased.stats.toJson({ errors: true }).errors ?? [];
+      expect(errors.map((error) => error.message).join("\n")).toMatch(
+        TABLE_IMPORTED,
+      );
+    } finally {
+      aliased.dispose();
     }
   });
 });

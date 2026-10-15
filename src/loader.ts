@@ -21,7 +21,7 @@ type LoaderContext = {
   callback(error: null, code: string, map?: unknown): void;
 };
 
-/** The pre-loader `SeveranPlugin` adds on `.svelte` files: serves the ones it rewrote. */
+/** The pre-loader `SeveranPlugin` adds on `.svelte` files and the library's script modules: serves the ones it rewrote. */
 export default function severanLoader(
   this: LoaderContext,
   source: string,

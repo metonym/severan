@@ -4,6 +4,7 @@ import type { SeveranOptions } from "../src/optimizer";
 import { severan } from "../src/vite";
 import { CARBON } from "./helpers/carbon";
 import { createFakeProject } from "./helpers/fake-project";
+import { installTableLibrary, TVLIB } from "./helpers/tailwind-variants";
 
 type Context = {
   resolve: (source: string, importer: string) => Promise<{ id: string } | null>;
@@ -66,6 +67,10 @@ const UNREAD_MODAL =
 const UNREAD_BARREL =
   /can't read how src[\\/]Other\.svelte imports `carbon-components-svelte`/;
 const UNREAD_ALIAS = /can't read how src[\\/]App\.svelte imports `@carbon`/;
+const TABLES_REWRITTEN =
+  /^rewrote 1 TvLib components and 1 tailwind-variants tables for this app/;
+const TABLE_IMPORTED =
+  /rewrote the tailwind-variants tables in node_modules[\\/]tvlib[\\/]src[\\/]theme\.js for the TvLib components that call them, but src[\\/]App\.svelte imports it directly/;
 
 /** A project with `src/App.svelte` and Carbon linked into its `node_modules`. */
 function setUp(
@@ -577,6 +582,47 @@ describe("severan/vite", () => {
       plugin.transform(IMPORT_BUTTON, path.join(project.root, "lib", "x.ts"));
       // With nothing rewritten, an unanalyzed importer is harmless.
       await expect(plugin.buildEnd.call(ctx)).resolves.toBeUndefined();
+    } finally {
+      project.dispose();
+    }
+  });
+  test("serves tailwind-variants tables rewritten for the components that call them", async () => {
+    const project = createFakeProject();
+    try {
+      const tvlib = installTableLibrary(project.root);
+      mkdirSync(path.join(project.root, "src"));
+      const app = path.join(project.root, "src", "App.svelte");
+      writeFileSync(
+        app,
+        `<script>import { Button } from "tvlib";</script>\n<Button color="red" />`,
+      );
+      const plugin = severan(TVLIB) as unknown as ResolvedPlugin;
+      plugin.configResolved({ root: project.root });
+      const ctx = context();
+      await plugin.buildStart.call(ctx);
+      expect(ctx.info.mock.calls[0][0]).toMatch(TABLES_REWRITTEN);
+      const theme = path.join(tvlib, "src/theme.js");
+      const rewritten = plugin.load(theme);
+      expect(rewritten?.code).toContain("bg-red");
+      expect(rewritten?.code).not.toContain("bg-green");
+      expect(rewritten?.map.mappings).not.toBe("");
+
+      // Imported by the library only: fine. From the app, through an alias: not.
+      const graph = (importers: string[]) => ({
+        ...ctx,
+        getModuleIds: () => [theme][Symbol.iterator](),
+        getModuleInfo: () => ({
+          importers,
+          dynamicImporters: [],
+          isEntry: false,
+        }),
+      });
+      await expect(
+        plugin.buildEnd.call(graph([path.join(tvlib, "src/index.js")])),
+      ).resolves.toBeUndefined();
+      await expect(plugin.buildEnd.call(graph([app]))).rejects.toThrow(
+        TABLE_IMPORTED,
+      );
     } finally {
       project.dispose();
     }
