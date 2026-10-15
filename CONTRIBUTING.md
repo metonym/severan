@@ -34,7 +34,7 @@ A build runs in three steps: read every call site, work out what can render, the
 - **Unknown must mean open.** Anything the analysis can't read keeps every value, and is never skipped: a missed call site removes code the app runs. Don't skip a file because of what its text lacks, and verify a change to what the analysis removes by rendering (see Tests).
 - **Zero runtime dependencies.** sveast is bundled into `dist/`; nothing in it may import `svelte`, which `bun run build` checks. Dev-only code (`tests/`, `bench/`, `scripts/`) may use anything.
 - **Self-contained types.** `dist/*.d.ts` roll up only what the public entries reference, so the analysis's own types (and sveast's) stay out of a consumer's program. `test:package` type-checks a consumer with `skipLibCheck: false`.
-- **Keep the public API small and explicit.** `src/index.ts`, `src/vite.ts` and `src/webpack.ts` export only what a user needs, by name (`noReExportAll`). Tests import internals from `src/` directly. New options default to current behavior.
+- **Keep the public API small and explicit.** `src/index.ts`, `src/vite.ts` and `src/webpack.ts` export only what a user needs, by name (`noReExportAll`). Tests import internals from `src/` directly. New options default to current behavior. `src/internal.ts` and `src/internal-analysis.ts` (`severan/internal`, `severan/internal/analysis`) are carbon-preprocess-svelte's, unstable and undocumented for users: `internal` must never load the parser (`test:package` checks it), and the analysis's types come only from `internal/analysis`, since each entry's declarations are rolled up on their own.
 
 ## Tests
 

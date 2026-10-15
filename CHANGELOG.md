@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+**Features**
+
+- `severan/internal` and `severan/internal/analysis`: the internals
+  carbon-preprocess-svelte builds on, unstable and not for apps.
+  `severan/internal` never loads the parser.
+
 ## 0.1.0
 
 **Features**

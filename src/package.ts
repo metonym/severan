@@ -95,6 +95,14 @@ function readVersion(root: string): unknown {
 const isLinked = (real: string) =>
   !real.split(path.sep).includes("node_modules");
 
+export function isLinkedCheckout(root: string): boolean {
+  try {
+    return isLinked(realpathSync(root));
+  } catch {
+    return false;
+  }
+}
+
 /** Cache key for a package's contents: real path and version, plus `srcDir` mtimes when linked. */
 export async function packageSignature(
   root: string,

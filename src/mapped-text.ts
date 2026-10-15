@@ -163,7 +163,7 @@ const SCRATCH_RETAIN_LIMIT = 1 << 20;
 let scratch = new Uint8Array(4096);
 
 /** Writes ASCII bytes: appending a string per segment builds slow ropes. */
-class MappingsBuilder {
+export class MappingsBuilder {
   private buffer = scratch;
   private length = 0;
   private line = 0;
