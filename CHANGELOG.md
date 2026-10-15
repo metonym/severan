@@ -51,6 +51,11 @@
   app's components or keeps the library's tailwind-variants tables whole.
   An `import.meta.glob()` in the library keeps every table, as a computed
   `import()` does.
+- An import of the library the analysis can't tell (an export it can't
+  resolve, a namespace read with a computed key) keeps every one of its
+  components whole, not only those the app renders: a component only
+  another one renders was rewritten for that one's props alone, and could
+  render the wrong branch.
 
 ## 0.2.0
 

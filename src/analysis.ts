@@ -16,6 +16,7 @@ import {
   libraryPaths,
 } from "./library-paths";
 import { type SourceMap, toSourceMap } from "./mapped-text";
+import { listJsAndSvelteFiles } from "./package";
 import {
   type Specialization,
   type SpecializeOptions,
@@ -362,15 +363,14 @@ export async function specializeFiles(input: {
   try {
     library = loadLibrary(input.library, input.projectRoot);
     appUsage = collectAppUsage(input.files, library, input.resolvedImports);
-    // Every component the app renders, and nothing else, is bundled.
-    result = await analyzeBundle(
-      library,
-      appUsage.modules,
-      appUsage.modules.flatMap((module) =>
-        module.sites.map((site) => site.component),
-      ),
-      {},
-    );
+    // Every component the app renders, and nothing else, is bundled; with
+    // an import the analysis can't tell, any of the library's may be.
+    const bundled = appUsage.modules.some((module) => module.openAll)
+      ? (await listJsAndSvelteFiles(library.src)).filter(isSvelteFile)
+      : appUsage.modules.flatMap((module) =>
+          module.sites.map((site) => site.component),
+        );
+    result = await analyzeBundle(library, appUsage.modules, bundled, {});
   } catch (error) {
     return { warning: failure(input.library, error, input.failure) };
   }
