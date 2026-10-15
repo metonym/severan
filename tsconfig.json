@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "target": "ESNext",
+    "module": "preserve",
+    "strict": true,
+    "erasableSyntaxOnly": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "severan": ["./src/index.ts"],
+      "severan/vite": ["./src/vite.ts"],
+      "severan/webpack": ["./src/webpack.ts"]
+    },
+    "types": ["bun", "jest"]
+  },
+  "include": ["bench", "scripts", "src", "tests"]
+}

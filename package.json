@@ -1,0 +1,55 @@
+{
+  "name": "severan",
+  "version": "0.0.0",
+  "license": "MIT",
+  "description": "Zero-dependency Svelte component specializer: rewrites each component a library ships for the props an app passes it, so branches that can never render are cut from the build.",
+  "author": "Eric Liu (https://github.com/metonym)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "test": "bun test --parallel ./tests",
+    "test:package": "bun scripts/test-package.ts",
+    "bench": "ostia bench bench/analysis.bench.ts bench/plugins.bench.ts",
+    "bench:ab": "ostia ab bench/analysis.bench.ts bench/plugins.bench.ts",
+    "typecheck": "bun check",
+    "lint": "biome ci --error-on-warnings",
+    "knip": "knip-bun",
+    "lint:fix": "biome check --write --unsafe ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/bun": "^1.4.3",
+    "@types/jest": "^30.0.0",
+    "@typescript/typescript6": "^6.0.2",
+    "carbon-components-svelte": "^0.113.1",
+    "knip": "^6.41.0",
+    "ostia": "^0.2.11",
+    "sveast": "^0.9.5",
+    "svelte": "^5.57.2",
+    "vite": "^8.3.4",
+    "webpack": "^5.111.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/metonym/severan.git"
+  },
+  "homepage": "https://github.com/metonym/severan",
+  "bugs": "https://github.com/metonym/severan/issues",
+  "keywords": [
+    "svelte",
+    "specialize",
+    "dead-code-elimination",
+    "tree-shaking",
+    "partial-evaluation",
+    "vite",
+    "webpack",
+    "rspack",
+    "zero-dependency"
+  ]
+}

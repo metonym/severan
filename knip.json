@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/index.ts",
+    "src/vite.ts",
+    "src/webpack.ts",
+    "src/loader.ts",
+    "scripts/*.ts",
+    "bench/*.ts",
+    "tests/*.ts"
+  ],
+  "project": [
+    "src/**/*.ts",
+    "scripts/**/*.ts",
+    "bench/**/*.ts",
+    "tests/**/*.ts"
+  ],
+  "ignoreBinaries": ["check"],
+  "ignoreDependencies": ["carbon-components-svelte"],
+  "svelte": false
+}
