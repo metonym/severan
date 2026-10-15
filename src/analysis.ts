@@ -466,7 +466,7 @@ function formatSpecializeReport(
 
   const lines = [
     "",
-    `${feature} report`,
+    `${spec.tool === feature ? feature : `${spec.tool} ${feature}`} report`,
     `  Rewrote ${changed.length} of ${rewrites.length} ${spec.label} components (${edits} edits, ${dropped} declarations dropped):`,
   ];
   for (const rewrite of changed) {

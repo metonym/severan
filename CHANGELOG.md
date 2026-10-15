@@ -8,6 +8,11 @@
   carbon-preprocess-svelte builds on, unstable and not for apps.
   `severan/internal` never loads the parser.
 
+**Fixes**
+
+- A wrapper's `report` heading names its `tool` before the feature
+  (`my-tool optimizeComponents report`), unless they're the same.
+
 ## 0.1.0
 
 **Features**
