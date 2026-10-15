@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { lexComponent, lexImportsExports } from "sveast/lexer";
 import { extractIdentifiers } from "sveast/walk";
-import { forEachNode, type Node, parse } from "./ast";
+import { forEachNode, type Node, parseModule } from "./ast";
 import { relativeKey, resolveModule } from "./package-exports";
 
 /** What a name a library module exports is, to what renders it. */
@@ -386,12 +386,7 @@ function readModule(code: string, typescript: boolean): ModuleInfo {
     body: () => {
       if (body === null) {
         try {
-          const lang = typescript ? ' lang="ts"' : "";
-          const ast = parse(
-            `<script context="module"${lang}>\n${code}\n</script>`,
-            { comments: false, css: false },
-          );
-          body = ast.module?.content.body ?? [];
+          body = parseModule(code, { typescript, comments: false }).body;
         } catch {
           body = undefined;
         }

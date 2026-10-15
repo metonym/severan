@@ -8,7 +8,11 @@ import {
   type ModuleConstants,
   type ModuleUsage,
 } from "./call-sites";
-import { buildComponentModel, type ComponentModel } from "./component-model";
+import {
+  buildComponentModel,
+  buildModuleModel,
+  type ComponentModel,
+} from "./component-model";
 import { createScope, evaluate, type Scope } from "./evaluate";
 import type { Library } from "./library";
 import {
@@ -22,7 +26,6 @@ import { isObject, UNKNOWN, type Value } from "./values";
 
 const MODULE_FILE = /\.[cm]?[jt]s$/;
 const TS_FILE = /\.[cm]?ts$/;
-const SCRIPT_END = /<\/script/i;
 
 /** Exported primitives only: an importer could change an exported object. */
 function moduleConstants(
@@ -51,14 +54,9 @@ function readConstants(
   file: string,
   code: string,
 ): ReadonlyMap<string, Value> | undefined {
-  if (SCRIPT_END.test(code)) return undefined;
   let model: ComponentModel;
   try {
-    const lang = TS_FILE.test(file) ? ' lang="ts"' : "";
-    model = buildComponentModel(
-      `<script context="module"${lang}>\n${code}\n</script>`,
-      file,
-    );
+    model = buildModuleModel(code, file, undefined, TS_FILE.test(file));
   } catch {
     return undefined;
   }

@@ -12,7 +12,7 @@ import {
   type VariableDeclarator,
   walk,
 } from "sveast/walk";
-import { forEachNode, type Node, parse } from "./ast";
+import { forEachNode, type Node, parse, parseModule } from "./ast";
 import {
   createExportResolver,
   type Export,
@@ -221,9 +221,6 @@ const scriptCache = new Map<
   { mtimeMs: number; checked: number; model: ComponentModel | undefined }
 >();
 
-/** What a `.js` module's model wraps its code in: offsets in it are shifted by its length. */
-export const SCRIPT_MODULE_PREFIX = '<script context="module">\n';
-
 /** An importer may change any name a `.js` module exports, so those all escape. */
 export function loadScriptModel(
   src: string,
@@ -239,8 +236,8 @@ export function loadScriptModel(
   }
   let model: ComponentModel | undefined;
   try {
-    model = buildComponentModel(
-      `${SCRIPT_MODULE_PREFIX}${readFileSync(file, "utf8")}\n</script>`,
+    model = buildModuleModel(
+      readFileSync(file, "utf8"),
       key,
       libraryResolver(src),
     );
@@ -323,6 +320,38 @@ function stringExport(
   );
   const matches = [...code.matchAll(declaration)];
   return matches.length === 1 ? matches[0][2] : undefined;
+}
+
+/**
+ * A `.js` or `.ts` module, modeled as a component with only
+ * `<script module>`: its offsets are the file's own.
+ */
+export function buildModuleModel(
+  code: string,
+  key: string,
+  resolveImport?: ImportResolver,
+  typescript = false,
+): ComponentModel {
+  const content = parseModule(code, { typescript, comments: false });
+  const ast: AST.Root = {
+    type: "Root",
+    start: 0,
+    end: code.length,
+    options: null,
+    fragment: { type: "Fragment", nodes: [] },
+    css: null,
+    module: {
+      type: "Script",
+      start: 0,
+      end: code.length,
+      context: "module",
+      content,
+      attributes: [],
+    },
+    comments: [],
+    js: [],
+  };
+  return buildComponentModel(code, key, resolveImport, ast);
 }
 
 export function buildComponentModel(

@@ -16,7 +16,6 @@ import {
   type ComponentModel,
   loadScriptModel,
   propertyName,
-  SCRIPT_MODULE_PREFIX,
 } from "./component-model";
 import { evaluate, type Scope } from "./evaluate";
 import { createExportResolver } from "./exports";
@@ -76,8 +75,6 @@ const TV_SOURCES = new Set(["tailwind-variants", "tailwind-variants/lite"]);
 const MARKER = "tailwind-variants";
 /** Props a call passes that aren't variants. */
 const NOT_VARIANTS = new Set(["class", "className"]);
-
-const offset = SCRIPT_MODULE_PREFIX.length;
 
 type Span = { start: number; end: number };
 
@@ -986,21 +983,11 @@ export async function specializeTables(
     if (edits.length === 0) continue;
     const model = loadScriptModel(library.src, module);
     if (!model) continue;
-    const source = model.code.slice(
-      offset,
-      model.code.length - "\n</script>".length,
-    );
+    const source = model.code;
     edits.sort((a, b) => a.start - b.start);
     result.modules.set(module, {
       source,
-      mapped: splice(
-        sliceOf(source, 0, source.length),
-        edits.map((edit) => ({
-          ...edit,
-          start: edit.start - offset,
-          end: edit.end - offset,
-        })),
-      ),
+      mapped: splice(sliceOf(source, 0, source.length), edits),
     });
   }
   return result;

@@ -9,7 +9,7 @@ export type Node = AST.SvelteNode;
  * never hold a named character reference. TypeScript stays in, so a library
  * release that adds `<script lang="ts">` still parses.
  */
-export const { parse } = createParser({ typescript });
+export const { parse, parseModule } = createParser({ typescript });
 
 /** Calls `visit` on `node` and every descendant, depth-first. */
 export function forEachNode(
