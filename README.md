@@ -35,7 +35,7 @@ If your app only ever writes `<Button kind="ghost">`, Svelte compiles this inste
 {/if}
 ```
 
-Libraries that keep their classes in [tailwind-variants](https://www.tailwind-variants.org/) tables (`tv({ variants: { color: { red: "…", green: "…" } } })`) get those tables rewritten too: keys no live call can select are removed, and a table nothing calls keeps no classes. With Tailwind, scanning what severan writes for it leaves those classes out of your CSS as well (see [Tailwind](#tailwind)).
+Libraries that keep their classes in [tailwind-variants](https://www.tailwind-variants.org/) tables (`tv({ variants: { color: { red: "…", green: "…" } } })`), with `tailwind: true` in their [`LibrarySpec`](#libraryspec), get those tables rewritten too: keys no live call can select are removed, and a table nothing calls keeps no classes. With Tailwind, scanning what severan writes for it leaves those classes out of your CSS as well (see [Tailwind](#tailwind)).
 
 It runs on production builds, in Vite, Rollup, Rolldown, webpack and Rspack, for Svelte 3, 4 and 5 (runes included). Rewritten components come with source maps back to their original source.
 
@@ -82,7 +82,7 @@ It adds a loader that runs before `svelte-loader` on `.svelte` files.
 
 ### Tailwind
 
-Tailwind generates a utility for every class string it scans, and a library's setup has it scan the package (`@source "../node_modules/my-library/dist"`). With Tailwind installed, every build writes what of the library can render to `node_modules/.severan/<name>`: every file but the components that can't render, as severan rewrote them (components and tailwind-variants tables). Scan that instead, with Tailwind v4's `@source`:
+Tailwind generates a utility for every class string it scans, and a library's setup has it scan the package (`@source "../node_modules/my-library/dist"`). For a library with `tailwind: true` in its [`LibrarySpec`](#libraryspec), and with Tailwind installed, every build writes what of the library can render to `node_modules/.severan/<name>`: every file but the components that can't render, as severan rewrote them (components and tailwind-variants tables). Scan that instead, with Tailwind v4's `@source`:
 
 ```css
 @source "../node_modules/.severan/my-library";
@@ -115,7 +115,7 @@ function severan(
 
 A Vite, Rollup and Rolldown plugin. Put it before the Svelte plugin.
 
-- Rewrites on `vite build` only (`--watch` included), never on the dev server, which only writes the library as it is for [Tailwind](#tailwind). Rollup and Rolldown have no dev server: add it only to production configs there.
+- Rewrites on `vite build` only (`--watch` included), never on the dev server, which runs only to write the library as it is for [Tailwind](#tailwind) (`tailwind: true`). Rollup and Rolldown have no dev server: add it only to production configs there.
 - `buildStart` reads `content`, resolving aliased `.svelte` imports (`$lib/Card.svelte`) with the bundler. A watch rebuild where nothing in `content` changed reuses the last analysis.
 - `load` serves the rewritten components, with source maps; `transform` and `buildEnd` check the module graph and fail the build when a module the analysis didn't read imports the library (see [Errors](#warnings-and-errors)).
 
@@ -134,11 +134,11 @@ class SeveranPlugin {
 }
 ```
 
-A webpack 5 and Rspack plugin. It rewrites nothing unless `mode` is `"production"` (an unset `mode` counts); other modes only write the library as it is for [Tailwind](#tailwind). It adds a pre-loader on `.svelte` files and the library's script modules, so `svelte-loader` compiles the rewritten source wherever the plugin sits in `plugins`, analyzes `content` on `beforeRun` and `watchRun`, and checks the module graph on `finishModules`.
+A webpack 5 and Rspack plugin. It rewrites nothing unless `mode` is `"production"` (an unset `mode` counts); other modes only write the library as it is for [Tailwind](#tailwind) (`tailwind: true`). It adds a pre-loader on `.svelte` files and the library's script modules, so `svelte-loader` compiles the rewritten source wherever the plugin sits in `plugins`, analyzes `content` on `beforeRun` and `watchRun`, and checks the module graph on `finishModules`.
 
 ### `LibrarySpec`
 
-Describes the library to rewrite. Every field but `classTokens` is required.
+Describes the library to rewrite. Every field but `classTokens` and `tailwind` is required.
 
 | Field | Type | |
 |:---|:---|:---|
@@ -150,6 +150,7 @@ Describes the library to rewrite. Every field but `classTokens` is required.
 | `label` | `string` | Names the library in messages: `"My Library"`. |
 | `tool` | `string` | Starts every warning and error: `"severan"`. |
 | `classTokens` | `{ marker, text, script }` | Optional. How to read the library's CSS class names, for analyses that prune its styles. The plugins and `specializeFiles` don't use it. |
+| `tailwind` | `boolean` | Optional, `false` by default. `true` for a library whose classes are Tailwind's: its tailwind-variants tables are rewritten, and with Tailwind installed, builds write what of it can render for [Tailwind](#tailwind) to scan, the dev server's and non-production webpack builds included. Without it, the analysis never loads that code, and the plugins skip those builds entirely. |
 
 ### `SeveranOptions`
 

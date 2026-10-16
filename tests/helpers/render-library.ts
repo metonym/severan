@@ -32,6 +32,8 @@ export type LibraryApp = {
   app: Record<string, string>;
   /** Other installed packages' files, by package name; `index.js` is each one's entry. */
   packages?: Record<string, Record<string, string>>;
+  /** The spec's `tailwind`: whether its tailwind-variants tables are rewritten. */
+  tailwind?: boolean;
 };
 
 const SVELTE_FILE = /\.svelte$/;
@@ -156,9 +158,10 @@ async function specialize(
   root: string,
   files: Array<{ file: string; code: string }>,
   options: { unwrap: boolean },
+  tailwind: boolean | undefined,
 ) {
   const result = await specializeFiles({
-    library: MYLIB,
+    library: { ...MYLIB, tailwind },
     projectRoot: root,
     files,
     failure: { feature: "specialize", fallback: "nothing was rewritten" },
@@ -178,7 +181,7 @@ export async function renderSpecialized(
 ): Promise<{ before: string; after: string; edits: number }> {
   const { root, files } = writeProject(shape);
   try {
-    const result = await specialize(root, files, options);
+    const result = await specialize(root, files, options, shape.tailwind);
     const overrides = new Map(
       [...result.sources].map(([file, { code }]) => [file, code]),
     );
@@ -198,7 +201,12 @@ export async function specializedLibrary(
 ): Promise<Record<string, string>> {
   const { root, files } = writeProject(shape);
   try {
-    const result = await specialize(root, files, { unwrap: false });
+    const result = await specialize(
+      root,
+      files,
+      { unwrap: false },
+      shape.tailwind,
+    );
     const src = realpathSync(
       path.join(root, "node_modules", MYLIB.name, "src"),
     );

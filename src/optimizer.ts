@@ -55,8 +55,8 @@ const ALIAS_SVELTE_IMPORT =
   /\b(?:from|import)\s*["']([^"'./][^"']*\.svelte)["']/g;
 
 /** With Tailwind installed, the library is written to `node_modules/.severan` for it to scan. */
-const usesTailwind = (root: string) =>
-  installedMajor("tailwindcss", root) !== undefined;
+const usesTailwind = (spec: LibrarySpec, root: string) =>
+  spec.tailwind === true && installedMajor("tailwindcss", root) !== undefined;
 
 /** For builds that don't rewrite (development): the library as it is, for Tailwind. */
 export async function writeOriginalsForTailwind(
@@ -64,7 +64,7 @@ export async function writeOriginalsForTailwind(
   root: string,
   names: PluginNames,
 ): Promise<string | undefined> {
-  if (!usesTailwind(root)) return undefined;
+  if (!usesTailwind(spec, root)) return undefined;
   const { writeLibraryForTailwind } = await import("./analysis");
   return writeLibraryForTailwind(spec, root, undefined, names.failure);
 }
@@ -263,7 +263,7 @@ export function createComponentOptimizer(
         };
       }
       const { result } = last;
-      if (usesTailwind(root)) {
+      if (usesTailwind(spec, root)) {
         // A linked library's edits change its signature; one that can't be
         // resolved is written (and warned about) every build.
         const dir = path.join(root, "node_modules", ".severan", spec.name);

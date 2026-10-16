@@ -5,5 +5,6 @@
   "componentPackages": [],
   "contextKeyPrefix": "svelteux:",
   "label": "svelte-ux",
-  "tool": "severan"
+  "tool": "severan",
+  "tailwind": true
 }

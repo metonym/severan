@@ -142,6 +142,7 @@ export class SeveranPlugin {
     // `mode` means production. The dev server's single-module rebuilds
     // would leave rewritten components stale.
     if (!isProduction(compiler)) {
+      if (this.spec.tailwind !== true) return;
       // Nothing is rewritten: Tailwind's `@source` gets the library as it is.
       const write = async () => {
         const warning = await writeOriginalsForTailwind(

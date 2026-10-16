@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**Features**
+
+- Breaking: Tailwind support is opt-in. Set `tailwind: true` in the
+  `LibrarySpec` of a library whose classes are Tailwind's, for its
+  tailwind-variants tables and `node_modules/.severan`. Without it, the
+  analysis neither scans for tables nor loads that code (23 ms off a
+  Carbon build), and the plugins skip the dev server and non-production
+  webpack builds again.
+
 ## 0.3.0
 
 **Features**

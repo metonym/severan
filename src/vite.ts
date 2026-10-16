@@ -41,6 +41,9 @@ export function severan(
     // `transform` must read app modules before a preprocessor changes them.
     // Rollup and Rolldown go by array order instead.
     enforce: "pre",
+    // Only Tailwind's directory needs the dev server. Rollup and Rolldown
+    // ignore `apply`.
+    ...(library.tailwind !== true && { apply: "build" as const }),
     configResolved(config) {
       root = config.root;
       serving = config.command === "serve";

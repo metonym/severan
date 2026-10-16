@@ -30,6 +30,13 @@ export type LibrarySpec = {
   classTokens?: ClassTokens & {
     script(code: string, into: Set<string>): void;
   };
+  /**
+   * `true` for a library whose classes are Tailwind's: its tailwind-variants
+   * tables are rewritten, and with Tailwind installed, every build (the dev
+   * server's included) writes what of it can render to
+   * `node_modules/.severan/<name>`, for Tailwind to scan. @default false
+   */
+  tailwind?: boolean;
 };
 
 /** An edge of the bundler's module graph into library module `id`; `specifier` is what `importer` wrote, when the bundler says. */
