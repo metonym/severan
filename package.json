@@ -1,6 +1,6 @@
 {
   "name": "severan",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "license": "MIT",
   "description": "Zero-dependency Svelte component specializer: rewrites each component a library ships for the props an app passes it, so branches that can never render are cut from the build.",
   "author": "Eric Liu (https://github.com/metonym)",
