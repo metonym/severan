@@ -107,6 +107,24 @@ describe("SeveranPlugin", () => {
     }
   });
 
+  test("without `tailwind: true`, non-production builds are left untouched", () => {
+    const tap = jest.fn();
+    const compiler = {
+      options: { mode: "development", module: { rules: [] } },
+      context: process.cwd(),
+      hooks: {
+        beforeRun: { tapPromise: tap },
+        watchRun: { tapPromise: tap },
+        thisCompilation: { tap },
+      },
+    };
+    new SeveranPlugin({ ...TVLIB, tailwind: undefined }).apply(
+      compiler as unknown as Parameters<SeveranPlugin["apply"]>[0],
+    );
+    expect(tap).not.toHaveBeenCalled();
+    expect(compiler.options.module.rules).toEqual([]);
+  });
+
   test("follows a wrapper's props, unless something outside `content` renders it", async () => {
     const files = {
       "src/App.svelte": `<script>import Card from "./Card.svelte";</script>\n<Card tone="danger" />`,

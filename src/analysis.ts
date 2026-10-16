@@ -21,11 +21,10 @@ import {
   type SpecializeOptions,
   specializeComponent,
 } from "./specialize";
-import { writeTailwindSources } from "./tailwind-sources";
 import type { CallSite } from "./usage";
 import { errorMessage, isSvelteFile, realpath, stripQuery } from "./util";
 import { formatValue, UNKNOWN } from "./values";
-import { type RewrittenTables, specializeTables } from "./variant-tables";
+import type { RewrittenTables } from "./variant-tables";
 
 export type UsageResult = {
   analysis: UsageAnalysis;
@@ -418,11 +417,23 @@ export async function specializeFiles(input: {
       if (specialized.edits > 0)
         serve(realpath(file) ?? file, scope, specialized);
     }
-    tables = await specializeTables(
-      library,
-      [...appUsage.read.values()],
-      (key) => result.analysis.scopeFor(key),
-    );
+    // tailwind-variants tables hold Tailwind classes: only a library that
+    // says it uses Tailwind is scanned for them, or loads the code that does.
+    tables =
+      input.library.tailwind === true
+        ? await (await import("./variant-tables")).specializeTables(
+            library,
+            [...appUsage.read.values()],
+            (key) => result.analysis.scopeFor(key),
+          )
+        : {
+            modules: new Map(),
+            pruned: 0,
+            emptied: 0,
+            keys: 0,
+            compounds: 0,
+            kept: new Map(),
+          };
     for (const [module, { mapped, source }] of tables.modules) {
       const file = path.join(src, module);
       sources.set(file, {
@@ -545,6 +556,7 @@ export async function writeLibraryForTailwind(
   failure: Failure,
 ): Promise<string | undefined> {
   try {
+    const { writeTailwindSources } = await import("./tailwind-sources");
     await writeTailwindSources(
       loadLibrary(spec, root),
       root,

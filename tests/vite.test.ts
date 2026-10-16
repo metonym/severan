@@ -22,6 +22,7 @@ type Context = {
 
 type ResolvedPlugin = {
   enforce: string;
+  apply?: string;
   configResolved(config: { root: string; command?: string }): void;
   buildStart(this: Context): Promise<void>;
   load(id: string): { code: string; map: { mappings: string } } | undefined;
@@ -100,6 +101,7 @@ describe("severan/vite", () => {
     );
     try {
       expect(plugin.enforce).toBe("pre");
+      expect(plugin.apply).toBe("build");
       plugin.configResolved({ root: project.root, command: "serve" });
       await plugin.buildStart.call(context());
       expect(
@@ -683,6 +685,33 @@ describe("severan/vite", () => {
       project.dispose();
     }
   });
+
+  test.each(["build", "serve"])(
+    "without `tailwind: true`, %s writes nothing, even with Tailwind",
+    async (command) => {
+      const project = createFakeProject();
+      try {
+        installTableLibrary(project.root, { tailwind: true });
+        mkdirSync(path.join(project.root, "src"));
+        writeFileSync(
+          path.join(project.root, "src", "App.svelte"),
+          `<script>import { Button } from "tvlib";</script>\n<Button color="red" />`,
+        );
+        const plugin = severan(
+          { ...TVLIB, tailwind: undefined },
+          { silent: true },
+        ) as unknown as ResolvedPlugin;
+        expect(plugin.apply).toBe("build");
+        plugin.configResolved({ root: project.root, command });
+        await plugin.buildStart.call(context());
+        expect(
+          existsSync(path.join(project.root, "node_modules/.severan")),
+        ).toBe(false);
+      } finally {
+        project.dispose();
+      }
+    },
+  );
 
   test("a watch rebuild rewrites Tailwind's directory only when it's gone", async () => {
     const project = createFakeProject();

@@ -76,6 +76,7 @@ export const TVLIB: LibrarySpec = {
   contextKeyPrefix: "tvlib:",
   label: "TvLib",
   tool: "severan",
+  tailwind: true,
 };
 
 const TVLIB_FILES: Record<string, string> = {

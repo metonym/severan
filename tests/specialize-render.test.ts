@@ -670,6 +670,7 @@ const tables = (
   lib: { ...TABLES_LIBRARY, ...lib },
   app: appRendering(markup, script),
   packages: { "tailwind-variants": TAILWIND_VARIANTS },
+  tailwind: true,
 });
 
 const TABLE_APPS: Record<string, LibraryApp> = {
@@ -708,6 +709,11 @@ describe("tailwind-variants tables render as the original", () => {
 describe("tailwind-variants tables", () => {
   const theme = async (shape: LibraryApp) =>
     (await specializedLibrary(shape))["theme.js"] ?? THEME;
+
+  test("stay as they are without `tailwind: true`", async () => {
+    const shape = { ...TABLE_APPS["one color and size"], tailwind: undefined };
+    expect((await specializedLibrary(shape))["theme.js"]).toBeUndefined();
+  });
 
   test("drop the keys and compound variants no call selects", async () => {
     const code = await theme(TABLE_APPS["one color and size"]);

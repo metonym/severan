@@ -16,6 +16,7 @@ export const TABLES: LibrarySpec = {
   contextKeyPrefix: "tables-bench:",
   label: "TablesBench",
   tool: "severan",
+  tailwind: true,
 };
 
 export const COMPONENTS = 60;
