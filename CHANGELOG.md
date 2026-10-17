@@ -8,6 +8,19 @@
   different sites no longer combine into classes none of them renders
   (one Button's `iconDescription` with another's `portalTooltip`).
 
+**Fixes**
+
+- `import()`, `require()` and `import.meta.glob()` in scripts are read
+  with sveast's lexer: one in a comment or a string no longer opens the
+  app's components or keeps the library's tailwind-variants tables whole.
+  An `import.meta.glob()` in the library keeps every table, as a computed
+  `import()` does.
+- An import of the library the analysis can't tell (an export it can't
+  resolve, a namespace read with a computed key) keeps every one of its
+  components whole, not only those the app renders: a component only
+  another one renders was rewritten for that one's props alone, and could
+  render the wrong branch.
+
 ## 0.4.0
 
 **Features**
@@ -46,16 +59,6 @@
   a component's root: unwrapping an `<svg>` into a block, or removing the
   branch with a fragment's only HTML element, could make it SVG and drop
   the whitespace between its nodes (flowbite-svelte's `BreadcrumbItem`).
-- `import()`, `require()` and `import.meta.glob()` in scripts are read
-  with sveast's lexer: one in a comment or a string no longer opens the
-  app's components or keeps the library's tailwind-variants tables whole.
-  An `import.meta.glob()` in the library keeps every table, as a computed
-  `import()` does.
-- An import of the library the analysis can't tell (an export it can't
-  resolve, a namespace read with a computed key) keeps every one of its
-  components whole, not only those the app renders: a component only
-  another one renders was rewritten for that one's props alone, and could
-  render the wrong branch.
 
 ## 0.2.0
 
