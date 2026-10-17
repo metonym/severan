@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+**Features**
+
+- `isPruned` reads each call site's classes on its own: values from
+  different sites no longer combine into classes none of them renders
+  (one Button's `iconDescription` with another's `portalTooltip`).
+
 ## 0.4.0
 
 **Features**
