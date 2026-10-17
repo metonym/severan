@@ -203,9 +203,50 @@ type ProvidedContexts = {
 type Pass = {
   usages: Map<string, ComponentUsage>;
   resolver: ContextResolver;
-  classes: Set<string>;
-  prefixes: Set<string>;
+  /** What each component's walk with its joined usage found. */
+  live: Map<string, LiveResult>;
+  /** Each component's call sites, as its usage joined them. */
+  sites: Map<string, CallSite[]>;
 };
+
+/**
+ * The classes and prefixes the rendered components can apply. The joined
+ * usage lets values from different call sites meet (one site's
+ * `iconDescription`, another's `portalTooltip`); every instance comes from
+ * one site, so a component with several is walked once per site.
+ */
+function passClasses(
+  pass: Pass,
+  modelOf: (key: string) => ComponentModel,
+  library: Library,
+): { classes: Set<string>; prefixes: Set<string> } {
+  const { svelteMajor } = library;
+  const classes = new Set<string>();
+  const prefixes = new Set<string>();
+  const add = (result: LiveResult) => {
+    for (const cls of result.classes) classes.add(cls);
+    for (const prefix of result.prefixes) prefixes.add(prefix);
+  };
+  for (const [key, own] of pass.sites) {
+    const joined = pass.live.get(key);
+    if (own.length === 1 && joined) {
+      add(joined);
+      continue;
+    }
+    const model = modelOf(key);
+    for (const site of own) {
+      const usage = newComponentUsage();
+      addCallSite(usage, site, model.propNames.values(), svelteMajor);
+      add(
+        walkLive(
+          createScope(model, usage, pass.resolver, { svelteMajor }),
+          library,
+        ),
+      );
+    }
+  }
+  return { classes, prefixes };
+}
 
 function runPass(
   modelOf: (key: string) => ComponentModel,
@@ -224,6 +265,7 @@ function runPass(
   for (let round = 0; ; round++) {
     const usages = new Map<string, ComponentUsage>();
     const live = new Map<string, LiveResult>();
+    const sites = new Map<string, CallSite[]>();
     // A component queued twice is walked once, with its usage as it is then.
     const queue = new Set<string>();
     const resolver = context(provided);
@@ -240,6 +282,12 @@ function runPass(
         site = { ...site, open: true, reason: "excluded" };
       }
       site = checkTarget(site, model);
+      let own = sites.get(site.component);
+      if (!own) {
+        own = [];
+        sites.set(site.component, own);
+      }
+      own.push(site);
       if (addCallSite(usage, site, model.propNames.values(), svelteMajor)) {
         queue.add(site.component);
       }
@@ -281,13 +329,7 @@ function runPass(
       next.unknown === provided.unknown &&
       sameValues(provided.values, next.values)
     ) {
-      const classes = new Set<string>();
-      const prefixes = new Set<string>();
-      for (const result of live.values()) {
-        for (const cls of result.classes) classes.add(cls);
-        for (const prefix of result.prefixes) prefixes.add(prefix);
-      }
-      return { usages, resolver, classes, prefixes };
+      return { usages, resolver, live, sites };
     }
     provided = next;
   }
@@ -401,15 +443,18 @@ export async function analyzeUsage(input: {
     token.endsWith("-"),
   );
   const verdicts = new Map<string, boolean>();
+  // Only what prunes styles asks; a rewrite never walks each site.
+  let rendered: ReturnType<typeof passClasses> | undefined;
   const isPruned = (cls: string): boolean => {
     let verdict = verdicts.get(cls);
     if (verdict === undefined) {
+      rendered ??= passClasses(precise, modelOf, library);
       // The index also lists classes a component's CSS targets
       // (`.x--date-picker` for every input DatePicker wraps); those can't
       // render unless their own component is live.
       verdict =
-        !precise.classes.has(cls) &&
-        !startsWithAny(cls, precise.prefixes) &&
+        !rendered.classes.has(cls) &&
+        !startsWithAny(cls, rendered.prefixes) &&
         !sources.scriptTokens.has(cls) &&
         !startsWithAny(cls, scriptPrefixes);
       verdicts.set(cls, verdict);

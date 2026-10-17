@@ -350,6 +350,29 @@ describe("analyzeUsage", () => {
     expect([...liveComponents]).toEqual([BUTTON]);
   });
 
+  // Joined, these sites' props allow an icon-only button with a classic
+  // tooltip; neither site renders one.
+  test("a class only values from different call sites together render is pruned", async () => {
+    const { isPruned } = await analyze(
+      app(
+        IMPORT_BUTTON,
+        `<Button icon={{}} iconDescription="Add" portalTooltip /><Button icon={{}} />`,
+      ),
+    );
+    expect(isPruned(".bx--btn--icon-only")).toBe(false);
+    expect(isPruned(".bx--tooltip__trigger")).toBe(true);
+  });
+
+  test("a class one call site renders is kept", async () => {
+    const { isPruned } = await analyze(
+      app(
+        IMPORT_BUTTON,
+        `<Button icon={{}} iconDescription="Add" portalTooltip /><Button icon={{}} iconDescription="Edit" />`,
+      ),
+    );
+    expect(isPruned(".bx--tooltip__trigger")).toBe(false);
+  });
+
   test("a component that never renders keeps none of its classes", async () => {
     // The index lists `.bx--date-picker` for TextInput (DatePicker can
     // wrap one), but no DatePicker is bundled here.
