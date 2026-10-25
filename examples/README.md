@@ -3,15 +3,15 @@
 Apps that use real component libraries, each built with Vite with and
 without severan. One page per library, from what a real app renders:
 
-| Example | Library | CSS |
-|:---|:---|:---|
-| `carbon` | carbon-components-svelte | Carbon's stylesheet |
-| `sveltestrap` | @sveltestrap/sveltestrap | Bootstrap |
-| `flowbite-svelte` | flowbite-svelte | Tailwind v4, flowbite's plugin |
-| `svelte-5-ui-lib` | svelte-5-ui-lib | Tailwind v4, flowbite's plugin |
-| `svelte-ux` | svelte-ux | Tailwind v4, @layerstack/tailwind's plugin |
-| `skeleton` | @skeletonlabs/skeleton-svelte | Tailwind v4, Skeleton's theme |
-| `bits-ui` | bits-ui | none (headless) |
+| Example           | Library                       | CSS                                        |
+| :---------------- | :---------------------------- | :----------------------------------------- |
+| `carbon`          | carbon-components-svelte      | Carbon's stylesheet                        |
+| `sveltestrap`     | @sveltestrap/sveltestrap      | Bootstrap                                  |
+| `flowbite-svelte` | flowbite-svelte               | Tailwind v4, flowbite's plugin             |
+| `svelte-5-ui-lib` | svelte-5-ui-lib               | Tailwind v4, flowbite's plugin             |
+| `svelte-ux`       | svelte-ux                     | Tailwind v4, @layerstack/tailwind's plugin |
+| `skeleton`        | @skeletonlabs/skeleton-svelte | Tailwind v4, Skeleton's theme              |
+| `bits-ui`         | bits-ui                       | none (headless)                            |
 
 ```sh
 bun install --cwd examples   # once: the libraries live here, not in severan's devDependencies
