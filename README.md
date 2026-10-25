@@ -95,7 +95,11 @@ or a Tailwind v3 `content` glob: `"./node_modules/.severan/my-library/**/*.{svel
 severan has no CLI: it runs inside your bundler (`severan/vite`, `severan/webpack`), or from your own script with `specializeFiles` (`severan`). Each entry ships its own types:
 
 ```ts
-import { type LibrarySpec, type SeveranOptions, specializeFiles } from "severan";
+import {
+  type LibrarySpec,
+  type SeveranOptions,
+  specializeFiles,
+} from "severan";
 import type { Failure, SpecializedComponents } from "severan";
 import { severan } from "severan/vite";
 import { SeveranPlugin, type WebpackCompiler } from "severan/webpack";
@@ -140,38 +144,38 @@ A webpack 5 and Rspack plugin. It rewrites nothing unless `mode` is `"production
 
 Describes the library to rewrite. Every field but `classTokens` and `tailwind` is required.
 
-| Field | Type | |
-|:---|:---|:---|
-| `name` | `string` | The package apps import: `"my-library"`. |
-| `srcDir` | `string` | The directory of its `.svelte` files in the package: `"src"`. |
-| `barrel` | `string` | Its entry, relative to `srcDir`: `"index.js"`. |
-| `componentPackages` | `readonly string[]` | Packages whose exports are components (an icon set), so passing one as a prop passes an object. |
-| `contextKeyPrefix` | `string` | What its context keys start with (`"my-library:"`): an app module that holds such a string may set or read its contexts. |
-| `label` | `string` | Names the library in messages: `"My Library"`. |
-| `tool` | `string` | Starts every warning and error: `"severan"`. |
-| `classTokens` | `{ marker, text, script }` | Optional. How to read the library's CSS class names, for analyses that prune its styles. The plugins and `specializeFiles` don't use it. |
-| `tailwind` | `boolean` | Optional, `false` by default. `true` for a library whose classes are Tailwind's: its tailwind-variants tables are rewritten, and with Tailwind installed, builds write what of it can render for [Tailwind](#tailwind) to scan, the dev server's and non-production webpack builds included. Without it, the analysis never loads that code, and the plugins skip those builds entirely. |
+| Field               | Type                       |                                                                                                                                                                                                                                                                                                                                                                                          |
+| :------------------ | :------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`              | `string`                   | The package apps import: `"my-library"`.                                                                                                                                                                                                                                                                                                                                                 |
+| `srcDir`            | `string`                   | The directory of its `.svelte` files in the package: `"src"`.                                                                                                                                                                                                                                                                                                                            |
+| `barrel`            | `string`                   | Its entry, relative to `srcDir`: `"index.js"`.                                                                                                                                                                                                                                                                                                                                           |
+| `componentPackages` | `readonly string[]`        | Packages whose exports are components (an icon set), so passing one as a prop passes an object.                                                                                                                                                                                                                                                                                          |
+| `contextKeyPrefix`  | `string`                   | What its context keys start with (`"my-library:"`): an app module that holds such a string may set or read its contexts.                                                                                                                                                                                                                                                                 |
+| `label`             | `string`                   | Names the library in messages: `"My Library"`.                                                                                                                                                                                                                                                                                                                                           |
+| `tool`              | `string`                   | Starts every warning and error: `"severan"`.                                                                                                                                                                                                                                                                                                                                             |
+| `classTokens`       | `{ marker, text, script }` | Optional. How to read the library's CSS class names, for analyses that prune its styles. The plugins and `specializeFiles` don't use it.                                                                                                                                                                                                                                                 |
+| `tailwind`          | `boolean`                  | Optional, `false` by default. `true` for a library whose classes are Tailwind's: its tailwind-variants tables are rewritten, and with Tailwind installed, builds write what of it can render for [Tailwind](#tailwind) to scan, the dev server's and non-production webpack builds included. Without it, the analysis never loads that code, and the plugins skip those builds entirely. |
 
 ### `SeveranOptions`
 
-| Option | Default | |
-|:---|:---|:---|
+| Option    | Default                                                                |                                                                                                                                                                                                                                                                                                                                                                      |
+| :-------- | :--------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `content` | `["src/**/*.{svelte,svx,md,mdx,astro,js,jsx,ts,tsx,mjs,mts,cjs,cts}"]` | Every file that renders the library's components, relative to the project root. They're analyzed before the build; a module outside them that imports one fails the build. `.svelte` files are read for the props they pass; a component imported from a script, Markdown, MDX or Astro file keeps every value. `node_modules` is skipped unless a pattern names it. |
-| `unwrap` | `true` on Svelte 5 | Replace an `{#if}` whose only live branch is known with that branch, instead of `{#if true}`. Svelte 3 and 4 render whitespace differently without the block. |
-| `silent` | `false` | Skip the per-build summary (`rewrote N My Library components for this app (M edits)`). |
-| `report` | `false` | Print what each build rewrote: edits per component, the children it no longer renders, the components no longer bundled, and the values each call site passes (or why it keeps every value). Independent of `silent`. |
+| `unwrap`  | `true` on Svelte 5                                                     | Replace an `{#if}` whose only live branch is known with that branch, instead of `{#if true}`. Svelte 3 and 4 render whitespace differently without the block.                                                                                                                                                                                                        |
+| `silent`  | `false`                                                                | Skip the per-build summary (`rewrote N My Library components for this app (M edits)`).                                                                                                                                                                                                                                                                               |
+| `report`  | `false`                                                                | Print what each build rewrote: edits per component, the children it no longer renders, the components no longer bundled, and the values each call site passes (or why it keeps every value). Independent of `silent`.                                                                                                                                                |
 
 ### `names`
 
 For a package that wraps severan and reports under its own name. `severan()` replaces its defaults whole, so pass `plugin`, `failure` and `id`; `SeveranPlugin` takes any of its fields.
 
-| Field | Default | |
-|:---|:---|:---|
-| `plugin` | `"severan"` | Names the plugin in errors, and webpack's hooks and logger. |
-| `failure.feature` | `"severan"` | Names what a failed analysis turns off, in its warning and the `report` heading (after `tool`, unless they're the same). |
-| `failure.fallback` | `"components were bundled unchanged"` | What happens instead, in that warning. |
-| `id` | `"severan"` | `severan()` only: the plugin's name in the bundler. |
-| `loader` | the bundled loader | webpack only: the path of the loader to add. |
+| Field              | Default                               |                                                                                                                          |
+| :----------------- | :------------------------------------ | :----------------------------------------------------------------------------------------------------------------------- |
+| `plugin`           | `"severan"`                           | Names the plugin in errors, and webpack's hooks and logger.                                                              |
+| `failure.feature`  | `"severan"`                           | Names what a failed analysis turns off, in its warning and the `report` heading (after `tool`, unless they're the same). |
+| `failure.fallback` | `"components were bundled unchanged"` | What happens instead, in that warning.                                                                                   |
+| `id`               | `"severan"`                           | `severan()` only: the plugin's name in the bundler.                                                                      |
+| `loader`           | the bundled loader                    | webpack only: the path of the loader to add.                                                                             |
 
 ### `specializeFiles(input)`
 
@@ -190,41 +194,46 @@ function specializeFiles(input: {
 
 The analysis and rewrite the plugins run, for a set of files and without a bundler. Pass every file that renders the library: a component a missing file renders is rewritten without its call sites.
 
-| Input | |
-|:---|:---|
-| `library` | The `LibrarySpec`. |
-| `projectRoot` | Where the library is resolved from (Yarn Plug'n'Play included), and what the report's paths are relative to. |
-| `files` | Absolute paths and their source. |
-| `failure` | `{ feature, fallback }` for the warning if the analysis throws. |
-| `options.unwrap` | Default `false`. As in `SeveranOptions`; pass `true` on Svelte 5. |
-| `options.dropUnused` | Default `true`. Remove top-level declarations nothing reads after the rewrite. |
-| `options.emptyBlock` | Default `{#if false}<!---->{/if}`. What replaces an `{#if}` that renders nothing between whitespace. |
-| `options.editFilter` | `(index, { start, end }) => boolean`. Debugging: apply only the top-level edits it accepts. |
-| `resolvedImports` | Non-relative `.svelte` imports you resolved yourself (`$lib/Card.svelte`), keyed `` `${importer}\0${specifier}` ``, to the absolute path of a file in `files`. |
+| Input                |                                                                                                                                                                |
+| :------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `library`            | The `LibrarySpec`.                                                                                                                                             |
+| `projectRoot`        | Where the library is resolved from (Yarn Plug'n'Play included), and what the report's paths are relative to.                                                   |
+| `files`              | Absolute paths and their source.                                                                                                                               |
+| `failure`            | `{ feature, fallback }` for the warning if the analysis throws.                                                                                                |
+| `options.unwrap`     | Default`false`. As in `SeveranOptions`; pass `true` on Svelte 5.                                                                                               |
+| `options.dropUnused` | Default`true`. Remove top-level declarations nothing reads after the rewrite.                                                                                  |
+| `options.emptyBlock` | Default`{#if false}<!---->{/if}`. What replaces an `{#if}` that renders nothing between whitespace.                                                            |
+| `options.editFilter` | `(index, { start, end }) => boolean`. Debugging: apply only the top-level edits it accepts.                                                                    |
+| `resolvedImports`    | Non-relative `.svelte` imports you resolved yourself (`$lib/Card.svelte`), keyed `` `${importer}\0${specifier}` ``, to the absolute path of a file in `files`. |
 
 It never throws: if the analysis fails, it resolves to `{ warning }` and nothing is rewritten. Otherwise to `SpecializedComponents`:
 
-| Field | Type | |
-|:---|:---|:---|
-| `sources` | `Map<string, { code: string; map: SourceMap }>` | Rewritten components and script modules by the real path of their source, each with a v3 source map. Serve these instead of the files on disk. |
-| `edits` | `number` | Edits made to components, across `sources`. |
-| `apps` | `number` | How many of `sources` are the app's own components. |
-| `renderable` | `ReadonlySet<string>` | The library components that can render, by path in `srcDir`. |
-| `tables` | `{ modules, pruned, emptied, keys, compounds }` | The tailwind-variants tables rewritten: how many of `sources` are their modules, tables pruned and emptied, and variant keys and compound variants removed. |
-| `closed` | `Set<string>` | App components whose props came from their call sites in `files`. Nothing outside `files` may render them; the plugins check it. |
-| `report` | `() => string[]` | The lines `report: true` prints. |
-| `readImport` | `(importer, id) => boolean` | Whether the analysis read file `importer`'s import of library module `id` (both real paths). `false` means an import it can't see, such as one through a bundler alias. |
+| Field        | Type                                            |                                                                                                                                                                         |
+| :----------- | :---------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sources`    | `Map<string, { code: string; map: SourceMap }>` | Rewritten components and script modules by the real path of their source, each with a v3 source map. Serve these instead of the files on disk.                          |
+| `edits`      | `number`                                        | Edits made to components, across `sources`.                                                                                                                             |
+| `apps`       | `number`                                        | How many of `sources` are the app's own components.                                                                                                                     |
+| `renderable` | `ReadonlySet<string>`                           | The library components that can render, by path in `srcDir`.                                                                                                            |
+| `tables`     | `{ modules, pruned, emptied, keys, compounds }` | The tailwind-variants tables rewritten: how many of `sources` are their modules, tables pruned and emptied, and variant keys and compound variants removed.             |
+| `closed`     | `Set<string>`                                   | App components whose props came from their call sites in `files`. Nothing outside `files` may render them; the plugins check it.                                        |
+| `report`     | `() => string[]`                                | The lines `report: true` prints.                                                                                                                                        |
+| `readImport` | `(importer, id) => boolean`                     | Whether the analysis read file `importer`'s import of library module `id` (both real paths). `false` means an import it can't see, such as one through a bundler alias. |
 
 ```ts
 const result = await specializeFiles({
   library,
   projectRoot: process.cwd(),
   files: [{ file: "/app/src/App.svelte", code }],
-  failure: { feature: "severan", fallback: "components were bundled unchanged" },
+  failure: {
+    feature: "severan",
+    fallback: "components were bundled unchanged",
+  },
   options: { unwrap: true },
 });
 if ("warning" in result) console.warn(result.warning);
-else for (const [file, { code, map }] of result.sources) console.log(file, code, map);
+else
+  for (const [file, { code, map }] of result.sources)
+    console.log(file, code, map);
 ```
 
 ### Warnings and errors
@@ -256,37 +265,37 @@ The app's own components are rewritten too, when every file that renders them is
 
 On real libraries, each component with every prop value it compares against plus random mixes of them, SSR-rendered with the original and the rewritten library:
 
-| Library | Components | Apps rendering identically | Apps rendering differently |
-|:---|:---|:---|:---|
-| carbon-components-svelte | 262 | 2,330 | 0 |
-| @sveltestrap/sveltestrap | 87 | 645 | 0 |
-| svelte-ux | 101 | 999 | 0 |
-| flowbite-svelte | 181 | 1,591 | 0 |
-| svelte-5-ui-lib | 135 | 918 | 0 |
-| bits-ui | 159 | 859 | 0 |
-| @skeletonlabs/skeleton-svelte | 131 | 327 | 0 |
+| Library                       | Components | Apps rendering identically | Apps rendering differently |
+| :---------------------------- | :--------- | :------------------------- | :------------------------- |
+| carbon-components-svelte      | 262        | 2,330                      | 0                          |
+| @sveltestrap/sveltestrap      | 87         | 645                        | 0                          |
+| svelte-ux                     | 101        | 999                        | 0                          |
+| flowbite-svelte               | 181        | 1,591                      | 0                          |
+| svelte-5-ui-lib               | 135        | 918                        | 0                          |
+| bits-ui                       | 159        | 859                        | 0                          |
+| @skeletonlabs/skeleton-svelte | 131        | 327                        | 0                          |
 
 How much it saves depends on how a library is written. Gzipped client JS of a realistic page built with Vite ([`examples/`](examples/README.md)):
 
-| Library | Style | Smaller by |
-|:---|:---|:---|
-| flowbite-svelte | Tailwind variants | 37.2% |
-| carbon-components-svelte | branches on props | 24.4% |
-| svelte-5-ui-lib | Tailwind variants | 18.7% |
-| @sveltestrap/sveltestrap | branches on props | 17.6% |
-| svelte-ux | Tailwind | 4.7% |
-| bits-ui | headless, state in classes | 2.1% |
-| @skeletonlabs/skeleton-svelte | headless, state machines | 0% |
+| Library                       | Style                      | Smaller by |
+| :---------------------------- | :------------------------- | :--------- |
+| flowbite-svelte               | Tailwind variants          | 37.2%      |
+| carbon-components-svelte      | branches on props          | 24.4%      |
+| svelte-5-ui-lib               | Tailwind variants          | 18.7%      |
+| @sveltestrap/sveltestrap      | branches on props          | 17.6%      |
+| svelte-ux                     | Tailwind                   | 4.7%       |
+| bits-ui                       | headless, state in classes | 2.1%       |
+| @skeletonlabs/skeleton-svelte | headless, state machines   | 0%         |
 
 Libraries whose markup branches on their props gain the most, and so do those whose tailwind-variants tables hold every variant's classes. Headless libraries that keep their state in classes or hand their props to a state machine leave little to fold.
 
 Tailwind's CSS for the same pages (v4, with each library's plugin), gzipped, scanning `node_modules/.severan` instead of the package:
 
-| Library | Smaller by |
-|:---|:---|
-| svelte-5-ui-lib | 71.7% |
-| flowbite-svelte | 60.9% |
-| svelte-ux | 24.9% |
+| Library         | Smaller by |
+| :-------------- | :--------- |
+| svelte-5-ui-lib | 71.7%      |
+| flowbite-svelte | 60.9%      |
+| svelte-ux       | 24.9%      |
 
 ## Limitations
 

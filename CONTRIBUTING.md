@@ -39,18 +39,18 @@ A build runs in three steps: read every call site, work out what can render, the
 
 ## Tests
 
-| File | Covers |
-|:---|:---|
+| File                              | Covers                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| :-------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `tests/specialize-render.test.ts` | Libraries written to disk ([`tests/helpers/render-library.ts`](tests/helpers/render-library.ts)), specialized, and SSR-rendered both ways: content and snippets, props set through an instance, imports through namespaces and other packages, barrels, Svelte 4 and 5 syntax around a rewrite, the writes that keep a value, and tailwind-variants tables (with a stand-in `tv`, [`tests/helpers/tailwind-variants.ts`](tests/helpers/tailwind-variants.ts)) |
-| `tests/specialize.test.ts` | `specializeComponent`: folding, branch removal, `unwrap`, whitespace around a removed block, shorthands, class directives, and what it never folds |
-| `tests/analyzer.test.ts` | Call sites, the component model, the usage fixpoint, contexts and stores, on carbon-components-svelte and mock libraries |
-| `tests/app-usage.test.ts` | Props through the app's own components, and when they're closed |
-| `tests/analyzer-values.test.ts` | The value lattice: joins, truthiness, binary operators, shapes |
-| `tests/mapped-text.test.ts` | Source maps for rewritten components |
-| `tests/vite.test.ts` | The Vite plugin on real Vite builds: rewriting, rebuilds when `content` changes, `report`, and the module-graph checks (modules outside `content`, aliases, virtual modules) |
-| `tests/webpack.test.ts` | The webpack plugin on real webpack builds: rewriting, production only, wrappers, and the module-graph checks |
-| `scripts/examples.ts` | `bun run examples`: the apps in [`examples/`](examples/README.md), real libraries built with Vite with and without severan; fails when their rendered HTML differs or their sizes move from `snapshot.json` (`--update` writes it) |
-| `scripts/test-package.ts` | `bun run test:package`: packs `dist/`, installs it into a scratch project, specializes a library in Node, loads both plugins, and type-checks a consumer |
+| `tests/specialize.test.ts`        | `specializeComponent`: folding, branch removal, `unwrap`, whitespace around a removed block, shorthands, class directives, and what it never folds                                                                                                                                                                                                                                                                                                            |
+| `tests/analyzer.test.ts`          | Call sites, the component model, the usage fixpoint, contexts and stores, on carbon-components-svelte and mock libraries                                                                                                                                                                                                                                                                                                                                      |
+| `tests/app-usage.test.ts`         | Props through the app's own components, and when they're closed                                                                                                                                                                                                                                                                                                                                                                                               |
+| `tests/analyzer-values.test.ts`   | The value lattice: joins, truthiness, binary operators, shapes                                                                                                                                                                                                                                                                                                                                                                                                |
+| `tests/mapped-text.test.ts`       | Source maps for rewritten components                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `tests/vite.test.ts`              | The Vite plugin on real Vite builds: rewriting, rebuilds when `content` changes, `report`, and the module-graph checks (modules outside `content`, aliases, virtual modules)                                                                                                                                                                                                                                                                                  |
+| `tests/webpack.test.ts`           | The webpack plugin on real webpack builds: rewriting, production only, wrappers, and the module-graph checks                                                                                                                                                                                                                                                                                                                                                  |
+| `scripts/examples.ts`             | `bun run examples`: the apps in [`examples/`](examples/README.md), real libraries built with Vite with and without severan; fails when their rendered HTML differs or their sizes move from `snapshot.json` (`--update` writes it)                                                                                                                                                                                                                            |
+| `scripts/test-package.ts`         | `bun run test:package`: packs `dist/`, installs it into a scratch project, specializes a library in Node, loads both plugins, and type-checks a consumer                                                                                                                                                                                                                                                                                                      |
 
 carbon-components-svelte is the reference library, configured in [`tests/helpers/carbon.ts`](tests/helpers/carbon.ts).
 
@@ -64,10 +64,10 @@ Only the maintainer releases. `feat:`/`fix:` commits land first, each with its `
 
 Changes to `src/` must not make things slower.
 
-| Command | Use |
-|:---|:---|
-| `bun run bench:ab` | **The regression check** (`ostia ab`): `HEAD` against the working tree, alternating in one process |
-| `bun run bench` | Per-task numbers: `analyzeFiles` and `specializeFiles` on apps of growing size, modeling cold, the app-component fixpoint at bundle scale, source maps, and the plugins' per-build checks |
+| Command            | Use                                                                                                                                                                                       |
+| :----------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run bench:ab` | **The regression check** (`ostia ab`): `HEAD` against the working tree, alternating in one process                                                                                        |
+| `bun run bench`    | Per-task numbers: `analyzeFiles` and `specializeFiles` on apps of growing size, modeling cold, the app-component fixpoint at bundle scale, source maps, and the plugins' per-build checks |
 
 Commit first, then run `bun run bench:ab` against the commit before your change (`--base <ref>` for older refs).
 
