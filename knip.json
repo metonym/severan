@@ -17,7 +17,6 @@
     "bench/**/*.ts",
     "tests/**/*.ts"
   ],
-  "ignoreBinaries": ["check"],
   "ignoreDependencies": ["carbon-components-svelte"],
   "svelte": false
 }
