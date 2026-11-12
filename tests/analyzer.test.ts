@@ -641,6 +641,38 @@ describe("analyzeUsage", () => {
       expect(await isProvidedPruned(files, `<Consumer />`)).toBe(false);
     });
 
+    test("reads a key held in a local constant", async () => {
+      const files = {
+        "Provider/Provider.svelte": provider(
+          `  const KEY = "carbon:Mock";\n  setContext(KEY, {});`,
+        ),
+      };
+      expect(await isProvidedPruned(files, `<Consumer />`)).toBe(true);
+      expect(
+        await isProvidedPruned(files, `<Provider><Consumer /></Provider>`),
+      ).toBe(false);
+    });
+
+    describe("a script module's constant key leaves other keys known", () => {
+      const files = (key: string) => ({
+        "Other/Other.svelte": provider(`  setContext("carbon:Mock", {});`),
+        "keys.js": `export const KEY = "carbon:Mock";\nexport const OTHER_KEY = "carbon:Other";\n`,
+        "provide.js": `import { setContext } from "svelte";\n${key}\nexport function provide() {\n  setContext(KEY, {});\n}\n`,
+      });
+
+      test.each([
+        `const KEY = "carbon:Other";`,
+        `import { OTHER_KEY as KEY } from "./keys.js";`,
+      ])("%s", async (key) => {
+        expect(await isProvidedPruned(files(key), `<Consumer />`)).toBe(true);
+      });
+
+      test("but not one it can't read", async () => {
+        const key = `const KEY = ["carbon", "Other"].join(":");`;
+        expect(await isProvidedPruned(files(key), `<Consumer />`)).toBe(false);
+      });
+    });
+
     test("a constant that isn't a lone string stays unknown", async () => {
       const files = {
         "keys.js": `const PREFIX = "carbon:";\nexport const KEY = PREFIX + "Mock";\n`,

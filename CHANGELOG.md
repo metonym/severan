@@ -10,6 +10,11 @@
 
 **Fixes**
 
+- A `.js` module that calls `setContext` with a key held in a constant,
+  local or imported, provides that key alone. It used to make every
+  context read unknown, so no context value could prune a class.
+  Components also read a key from a local `const`, not only an imported
+  one.
 - `import()`, `require()` and `import.meta.glob()` in scripts are read
   with sveast's lexer: one in a comment or a string no longer opens the
   app's components or keeps the library's tailwind-variants tables whole.

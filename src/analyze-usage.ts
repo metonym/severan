@@ -4,6 +4,7 @@ import type { ModuleUsage } from "./call-sites";
 import {
   type ComponentModel,
   loadComponentModel,
+  loadScriptModel,
   type MirroredStore,
   recheckScriptModels,
 } from "./component-model";
@@ -111,13 +112,17 @@ export async function scanLibrarySources(
       );
     }
     if (!SET_OTHER_CONTEXT.test(code)) continue;
-    // A component's own model reads keys imported as constants; any it
-    // can't read make it provide every key (`providesUnknownContext`).
-    if (isScript) sources.unknownScriptContext = true;
-    else {
-      for (const key of loadComponentModel(src, file).providedContexts) {
-        sources.componentContexts.add(key);
-      }
+    // A module's own model reads keys held in constants, local or
+    // imported; any it can't read make it provide every key
+    // (`providesUnknownContext`).
+    const model = isScript
+      ? loadScriptModel(src, file)
+      : loadComponentModel(src, file);
+    if (isScript && (!model || model.providesUnknownContext)) {
+      sources.unknownScriptContext = true;
+    }
+    for (const key of model?.providedContexts ?? []) {
+      (isScript ? sources.scriptContexts : sources.componentContexts).add(key);
     }
   }
   return sources;
