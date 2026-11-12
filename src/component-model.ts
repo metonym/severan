@@ -1260,8 +1260,13 @@ export function contextKey(
   }
   if (node?.type !== "Identifier") return undefined;
   const binding = model.scopes.bindingOf(node);
-  return binding && isTopLevel(binding, model)
-    ? model.importedStrings.get(node.name)
+  if (!binding || !isTopLevel(binding, model)) return undefined;
+  const imported = model.importedStrings.get(node.name);
+  if (imported !== undefined) return imported;
+  // `const KEY = "carbon:Form"` in the same file.
+  const init = topLevelConstant(model, node)?.declarator.init;
+  return init?.type === "Literal" && typeof init.value === "string"
+    ? init.value
     : undefined;
 }
 
