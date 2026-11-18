@@ -609,6 +609,104 @@ describe("events nothing listens to", () => {
   });
 });
 
+// `dispatch(type, …)` with no listener for `type` only evaluates its
+// arguments and returns `true`.
+
+const DISPATCH_LIBRARY = {
+  "Picker.svelte": `<script context="module">
+  let count = 0;
+  function track(value) {
+    count++;
+    return value;
+  }
+</script>
+<script>
+  import { createEventDispatcher } from "svelte";
+  export let value = "a";
+  const dispatch = createEventDispatcher();
+  function pick(next) {
+    value = next;
+    dispatch("change", { value: next });
+    dispatch("select", track(next));
+  }
+  function relay(dispatch) {
+    dispatch("change");
+  }
+  $: dispatch("update", value);
+  $: heard = dispatch("ping", track(value));
+</script>
+<button on:click={() => pick("b")} on:focus={() => relay(() => {})}>{heard} {count}</button>`,
+  "Outer.svelte": `<script>
+  import Picker from "./Picker.svelte";
+</script>
+<Picker on:change />`,
+};
+
+const dispatching = (markup: string, script = ""): LibraryApp => ({
+  lib: DISPATCH_LIBRARY,
+  app: appRendering(markup, script),
+});
+
+describe("events dispatched to no listener", () => {
+  const picker = async (shape: LibraryApp) =>
+    (await specializedLibrary(shape))["Picker.svelte"] ??
+    DISPATCH_LIBRARY["Picker.svelte"];
+
+  const RENDERS: Record<string, LibraryApp> = {
+    "nothing listening": dispatching("<Picker />"),
+    "a listener": dispatching("<Picker on:ping={() => {}} />"),
+  };
+  const cases = Object.keys(RENDERS).flatMap((name): [string, boolean][] => [
+    [name, false],
+    [name, true],
+  ]);
+  test.each(cases)(
+    "render as the original: %s (unwrap: %p)",
+    async (name, unwrap) => {
+      const { before, after } = await renderSpecialized(RENDERS[name], {
+        unwrap,
+      });
+      expect(after).toBe(before);
+    },
+  );
+
+  test("go, keeping what their arguments run", async () => {
+    const code = await picker(dispatching("<Picker />"));
+    expect(code).not.toContain('dispatch("change", { value: next })');
+    expect(code).toContain('void ("select", track(next));');
+    expect(code).not.toContain('dispatch("update"');
+    // Its result: `true` in the browser, `undefined` on the server.
+    expect(code).toContain('$: heard = dispatch("ping", track(value));');
+    // A parameter named `dispatch` isn't the dispatcher.
+    expect(code).toContain('dispatch("change");');
+  });
+
+  test("stay where a site listens", async () => {
+    const code = await picker(dispatching("<Picker on:change={() => {}} />"));
+    expect(code).toContain('dispatch("change", { value: next })');
+    expect(code).not.toContain('dispatch("update"');
+  });
+
+  test("follow forwarding through the library", async () => {
+    expect(
+      await picker(dispatching("<Outer on:change={() => {}} />")),
+    ).toContain('dispatch("change", { value: next })');
+    expect(await picker(dispatching("<Outer />"))).not.toContain(
+      'dispatch("change", { value: next })',
+    );
+  });
+
+  test("stay with `$on` on its instance", async () => {
+    const code = await picker(
+      dispatching(
+        "<Picker bind:this={p} />",
+        'let p;\n$: p?.$on("change", () => {});',
+      ),
+    );
+    expect(code).toContain('dispatch("change", { value: next })');
+  });
+});
+
 // A rest object no site passes a key to is empty: spreading it on a
 // component or into an object adds nothing. On an element it stays, since
 // a spread there decides how Svelte renders the element's attributes.

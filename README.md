@@ -2,7 +2,7 @@
 
 > Zero-dependency Svelte component specializer. Rewrites each component a library ships for the props your app passes it, so branches that can never render are cut from the build.
 
-A component library's `Button` handles every `kind`, `size` and state any app might ask for, and your bundle carries all of it. severan reads every call site in your app before the build, works out which values each prop can take, and hands Svelte a copy of each component rewritten for those values: props that never change become literals, `{#if}` branches that can't run are removed, and child components only those branches render are no longer bundled. Props nothing reads anymore are removed, props no call site passes become the component's own variables, and the events a component passes on (`on:click`) that no call site listens to are removed.
+A component library's `Button` handles every `kind`, `size` and state any app might ask for, and your bundle carries all of it. severan reads every call site in your app before the build, works out which values each prop can take, and hands Svelte a copy of each component rewritten for those values: props that never change become literals, `{#if}` branches that can't run are removed, and child components only those branches render are no longer bundled. Props nothing reads anymore are removed, props no call site passes become the component's own variables, and the events a component passes on (`on:click`) or dispatches (`dispatch("change")`) are removed where no call site listens to them.
 
 ```svelte
 <!-- the library's Button.svelte -->
@@ -253,7 +253,7 @@ Every message starts with `` `${tool}:` ``.
 - A component whose props something other than a call site can set keeps every value: a custom element, or one bound with `bind:this` whose instance the app uses for more than calling what it exports (`$set`, an accessor, `$on`, handing it on).
 - A prop nothing reads anymore stays declared where removing it would show: its default has effects (`uniqueId()`), something writes it, or a call site passes it to a component that reads `$$restProps` or `$$props`, where it would land.
 - A prop becomes a plain `let` only when no call site passes or binds it.
-- A bare `on:click` stays wherever a call site may listen to it: one with `on:click`, one whose own forwarded `on:click` has a listener, or one the analysis can't read.
+- A bare `on:click` stays wherever a call site may listen to it: one with `on:click`, one whose own forwarded `on:click` has a listener, or one the analysis can't read. So does a `dispatch("click", …)`, and one goes only where its result is unused (`true` in the browser, `undefined` on the server), keeping whatever its arguments run.
 - `$$restProps` is spread away only when no call site passes a key it would hold, and only onto components and into objects: on an element, a spread decides how Svelte renders its attributes.
 - Content counts: snippets are props, and content outside them is `children` on Svelte 5 and a slot on Svelte 3 and 4.
 - An export of the library it can't tell apart from a component (a function that may return one) keeps every component.
@@ -280,10 +280,10 @@ How much it saves depends on how a library is written. Gzipped client JS of a re
 | Library                       | Style                      | Smaller by |
 | :---------------------------- | :------------------------- | :--------- |
 | flowbite-svelte               | Tailwind variants          | 37.2%      |
-| carbon-components-svelte      | branches on props          | 29.5%      |
+| carbon-components-svelte      | branches on props          | 29.7%      |
 | @sveltestrap/sveltestrap      | branches on props          | 22.0%      |
 | svelte-5-ui-lib               | Tailwind variants          | 18.8%      |
-| svelte-ux                     | Tailwind                   | 5.4%       |
+| svelte-ux                     | Tailwind                   | 5.5%       |
 | bits-ui                       | headless, state in classes | 2.2%       |
 | @skeletonlabs/skeleton-svelte | headless, state machines   | 0%         |
 

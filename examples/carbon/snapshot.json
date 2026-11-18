@@ -2,7 +2,7 @@
   "library": "carbon-components-svelte@0.113.1",
   "rewritten": {
     "components": 82,
-    "edits": 1603,
+    "edits": 1631,
     "tables": {
       "pruned": 0,
       "emptied": 0,
@@ -16,10 +16,10 @@
       "gzip": 107882
     },
     "severan": {
-      "bytes": 241091,
-      "gzip": 76069
+      "bytes": 240392,
+      "gzip": 75856
     },
-    "gzipSmallerBy": "29.5%"
+    "gzipSmallerBy": "29.7%"
   },
   "css": {
     "original": {
