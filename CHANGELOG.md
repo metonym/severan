@@ -9,6 +9,13 @@
   each selector (`/^\.x--tag--/`), as carbon-preprocess-svelte's does.
   Before, a safelisted class only kept itself, so a selector with
   another class that nothing renders still went.
+- Stylesheet pruning also removes the custom properties and `@keyframes`
+  the library's stylesheets define that nothing reads once their rules
+  are gone: no `var()` or animation left in the emitted CSS, and no app
+  file or library source naming them (a name a script builds, like
+  `` `--tone-${t}` ``, keeps every property with that prefix). Gzipped
+  CSS of the sveltestrap example 46.8% smaller (44.2%), Carbon's 71.5%
+  (71.3%).
 - `severan/internal/analysis` exports `libraryStylePruner`, for a pruner
   from an analysis made without `specializeFiles` (carbon-preprocess-svelte's
   per-module `createUsageCollector`).

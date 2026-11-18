@@ -4,7 +4,7 @@
  * that nothing can render. Classes the stylesheets don't define (the app's
  * own, Svelte's scoping hashes, other packages') never remove a rule.
  */
-import { globSync, readFileSync } from "node:fs";
+import { globSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { filterCss } from "caligula";
 import { type ParsedSelector, parseSelectorList } from "caligula/selector";
@@ -13,10 +13,12 @@ import { requirePackageDir } from "./package";
 
 type PrunedStyles = {
   css: string;
-  /** Rules removed whole. */
+  /** Rules removed whole, `@keyframes` included. */
   rules: number;
   /** Selectors removed from rules that stay. */
   selectors: number;
+  /** Custom property declarations removed. */
+  declarations: number;
 };
 
 /** Removes the rules of `css` that need a class nothing can render. */
@@ -59,19 +61,146 @@ export function stylesheetFiles(
   return [...files];
 }
 
-/** Every class `css`'s selectors name, required or negated. */
-export function definedClasses(css: string, into: Set<string>): void {
+/** What a library's stylesheets define, of what the pruner may remove. */
+type Defined = {
+  /** Classes their selectors name, required or negated. */
+  classes: Set<string>;
+  /** Custom properties they declare (`--x`). */
+  properties: Set<string>;
+  /** `@keyframes` names. */
+  keyframes: Set<string>;
+};
+
+function newDefined(): Defined {
+  return { classes: new Set(), properties: new Set(), keyframes: new Set() };
+}
+
+const KEYFRAMES = /^(?:-[a-z]+-)?keyframes$/i;
+
+/** Adds what `css` defines to `into`. */
+function definedIn(css: string, into: Defined): void {
   filterCss(css, {
     discardEmpty: false,
     rule: ({ parsed }) => {
       for (const selector of parsed) {
         for (const { classes, negated } of selector.compounds) {
-          for (const cls of classes) into.add(cls);
-          for (const cls of negated) into.add(cls);
+          for (const cls of classes) into.classes.add(cls);
+          for (const cls of negated) into.classes.add(cls);
         }
       }
     },
+    atRule: ({ name, params }) => {
+      if (KEYFRAMES.test(name)) into.keyframes.add(unquote(params.trim()));
+    },
+    decl: ({ prop }) => {
+      if (prop.startsWith("--")) into.properties.add(prop);
+    },
   });
+}
+
+/** Every class `css`'s selectors name, required or negated. */
+export function definedClasses(css: string, into: Set<string>): void {
+  const defined = newDefined();
+  definedIn(css, defined);
+  for (const cls of defined.classes) into.add(cls);
+}
+
+const QUOTED = /^(["']).*\1$/;
+
+function unquote(text: string): string {
+  return QUOTED.test(text) ? text.slice(1, -1) : text;
+}
+
+/** What may read a custom property or `@keyframes` from outside the CSS. */
+type ExternalReads = {
+  /** Words (`[\w-]+`, `--x` included) in the app's files and the library's sources. */
+  words: Set<string>;
+  /** Custom property prefixes a source builds names from (`--tone-` in `` `--tone-${t}` ``). */
+  propertyPrefixes: string[];
+};
+
+const WORD = /[\w-]+/g;
+/** `--tone-` before `${…}` or a quote and `+`: a name built at runtime. */
+const BUILT_PROPERTY = /(--[\w-]*)(?:\$\{|["'`]\s*\+)/g;
+
+/** Adds what `code` may read to `into`. */
+function readsIn(code: string, into: ExternalReads): void {
+  for (const [word] of code.matchAll(WORD)) into.words.add(word);
+  for (const [, prefix] of code.matchAll(BUILT_PROPERTY)) {
+    into.propertyPrefixes.push(prefix);
+  }
+}
+
+const VAR_READ = /var\(\s*(--[\w-]+)/g;
+const MAX_PASSES = 8;
+
+/**
+ * Removes the custom properties `defined` declares that nothing reads (no
+ * `var()` left in `css`, nothing in `external`), until none is left, and
+ * the `@keyframes` it defines that no declaration left names. Returns the
+ * CSS and what it removed.
+ */
+function pruneUnread(
+  css: string,
+  defined: Defined,
+  external: ExternalReads,
+): { css: string; rules: number; declarations: number } {
+  const readOutside = (property: string) =>
+    external.words.has(property) ||
+    external.propertyPrefixes.some((prefix) => property.startsWith(prefix));
+  let rules = 0;
+  let declarations = 0;
+  for (let pass = 0; pass < MAX_PASSES; pass++) {
+    const read = new Set<string>();
+    const words = new Set<string>();
+    const scan = (text: string) => {
+      for (const [, property] of text.matchAll(VAR_READ)) read.add(property);
+      for (const [word] of text.matchAll(WORD)) words.add(word);
+    };
+    filterCss(css, {
+      discardEmpty: false,
+      // A `@keyframes` rule's name isn't a read of it.
+      atRule: ({ name, params }) => {
+        if (!KEYFRAMES.test(name)) scan(params);
+      },
+      decl: ({ value }) => {
+        scan(value);
+      },
+    });
+    let removed = 0;
+    const result = filterCss(css, {
+      atRule: ({ name, params }) => {
+        if (!KEYFRAMES.test(name)) return undefined;
+        const keyframes = unquote(params.trim());
+        if (
+          !defined.keyframes.has(keyframes) ||
+          words.has(keyframes) ||
+          external.words.has(keyframes)
+        ) {
+          return undefined;
+        }
+        rules++;
+        removed++;
+        return false;
+      },
+      decl: ({ prop }) => {
+        if (
+          !prop.startsWith("--") ||
+          !defined.properties.has(prop) ||
+          read.has(prop) ||
+          readOutside(prop)
+        ) {
+          return undefined;
+        }
+        declarations++;
+        removed++;
+        return false;
+      },
+    });
+    css = result.css;
+    if (removed === 0) break;
+  }
+  return { css, rules, declarations };
 }
 
 /**
@@ -145,7 +274,7 @@ export function createStylePruner(
         return kept.map(({ text }) => text).join(", ");
       },
     });
-    return { css: result.css, rules, selectors };
+    return { css: result.css, rules, selectors, declarations: 0 };
   };
 }
 
@@ -206,10 +335,16 @@ export function libraryStylePruner(input: {
   const { spec, projectRoot, isPruned } = input;
   const tokens = classTokensOf(spec);
   if (!spec.styles || !tokens) return undefined;
-  const defined = new Set<string>();
+  const library = newDefined();
   for (const file of stylesheetFiles(spec.styles.stylesheets, projectRoot)) {
-    definedClasses(readFileSync(file, "utf8"), defined);
+    definedIn(readFileSync(file, "utf8"), library);
   }
+  const defined = library.classes;
+  // Custom properties and keyframes the app's files or the library's own
+  // sources name stay: a script may read or set them.
+  const external: ExternalReads = { words: new Set(), propertyPrefixes: [] };
+  for (const { code } of input.files) readsIn(code, external);
+  for (const code of librarySources(spec, projectRoot)) readsIn(code, external);
   // What the app's files name stays: a class it writes itself, or passes
   // to a component.
   const named = new Set<string>(spec.styles.keep ?? []);
@@ -224,7 +359,7 @@ export function libraryStylePruner(input: {
   const readable = (cls: string) =>
     cls.includes(tokens.marker) && tokens.text(cls).includes(`.${cls}`);
   const safelist = input.safelist ?? [];
-  return createStylePruner(
+  const pruneRules = createStylePruner(
     (cls) =>
       defined.has(cls) &&
       !named.has(cls) &&
@@ -234,4 +369,24 @@ export function libraryStylePruner(input: {
       ? (selector) => isSafelisted(selector, safelist)
       : undefined,
   );
+  return (css) => {
+    const pruned = pruneRules(css);
+    const unread = pruneUnread(pruned.css, library, external);
+    return {
+      css: unread.css,
+      rules: pruned.rules + unread.rules,
+      selectors: pruned.selectors,
+      declarations: unread.declarations,
+    };
+  };
+}
+
+const SOURCE = /\.(?:svelte|[cm]?[jt]s)$/;
+
+/** The library's `.svelte` and script files, as text. */
+function librarySources(spec: LibrarySpec, projectRoot: string): string[] {
+  const src = path.join(requirePackageDir(spec.name, projectRoot), spec.srcDir);
+  return readdirSync(src, { recursive: true, encoding: "utf8" })
+    .filter((file) => SOURCE.test(file) && !file.includes("node_modules"))
+    .map((file) => readFileSync(path.join(src, file), "utf8"));
 }

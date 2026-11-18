@@ -327,18 +327,22 @@ export function createComponentOptimizer(
       const prune = build.pruneStyles;
       if (!prune) return undefined;
       let rules = 0;
+      let declarations = 0;
       let before = 0;
       let after = 0;
       for (const [name, css] of assets) {
         const pruned = prune(css);
         rules += pruned.rules;
+        declarations += pruned.declarations;
         before += css.length;
         after += pruned.css.length;
         assets.set(name, pruned.css);
       }
-      if (rules === 0 || options?.silent) return undefined;
+      if (rules + declarations === 0 || options?.silent) return undefined;
       const kB = (bytes: number) => `${(bytes / 1000).toFixed(2)} kB`;
-      return `removed ${rules} unused ${label} CSS rules (${kB(before)} -> ${kB(after)})`;
+      const properties =
+        declarations > 0 ? ` and ${declarations} custom properties` : "";
+      return `removed ${rules} unused ${label} CSS rules${properties} (${kB(before)} -> ${kB(after)})`;
     },
 
     /** Whether `id` may be served rewritten, now or after `content` changes. */
