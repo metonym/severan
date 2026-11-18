@@ -1184,6 +1184,15 @@ function removableDeclarations(
   }
   const removable = (name: string) =>
     !props.has(name) && !(name.startsWith("$") && !name.startsWith("$$"));
+  // TypeScript overload signatures name the function they precede: removing
+  // only the implementation would leave them dangling.
+  const overloaded = new Set<string>();
+  for (const statement of statements) {
+    const node = statement as unknown as { type: string; id?: Node | null };
+    if (node.type === "TSDeclareFunction" && node.id?.type === "Identifier") {
+      overloaded.add(node.id.name);
+    }
+  }
 
   const candidates: Candidate[] = [];
   for (const statement of statements) {
@@ -1221,6 +1230,19 @@ function removableDeclarations(
       ) {
         candidates.push({ name: id.name, statement, own: [id] });
       }
+    } else if (
+      statement.type === "FunctionDeclaration" &&
+      statement.id &&
+      removable(statement.id.name) &&
+      !overloaded.has(statement.id.name)
+    ) {
+      // Declaring a function runs nothing: once nothing calls it, the
+      // helpers it reaches (and their imports) can go too.
+      candidates.push({
+        name: statement.id.name,
+        statement,
+        own: [statement.id],
+      });
     }
   }
   return candidates;

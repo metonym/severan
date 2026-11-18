@@ -776,6 +776,47 @@ describe("empty rest objects", () => {
   });
 });
 
+// A handler only a removed branch calls goes, and so does the helper it
+// creates lazily; a handler the markup still calls stays.
+describe("functions only a removed branch calls", () => {
+  const lib = {
+    "handoff.js": "export function createHandoff() { return { enter() {} }; }",
+    "Tip.svelte": `<script>
+  import { createHandoff } from "./handoff.js";
+  export let label = undefined;
+  let count = 0;
+  let handoff;
+  const getHandoff = () => (handoff ??= createHandoff());
+  function onEnter() { getHandoff().enter(); }
+  function onClick() { count += 1; }
+</script>
+<button on:click={onClick}>{count}{#if label}<span on:mouseenter={onEnter}>{label}</span>{/if}</button>`,
+  };
+  const shapes: Record<string, LibraryApp> = {
+    "without the branch": { lib, app: appRendering("<Tip />") },
+    "with the branch": { lib, app: appRendering('<Tip label="L" />') },
+  };
+  const cases = Object.keys(shapes).flatMap((name): [string, boolean][] => [
+    [name, false],
+    [name, true],
+  ]);
+  test.each(cases)("%s (unwrap: %p)", async (name, unwrap) => {
+    const { before, after } = await renderSpecialized(shapes[name], {
+      unwrap,
+    });
+    expect(after).toBe(before);
+  });
+
+  test("are removed", async () => {
+    const code = (await specializedLibrary(shapes["without the branch"]))[
+      "Tip.svelte"
+    ];
+    expect(code).toContain("function onClick()");
+    expect(code).not.toContain("onEnter");
+    expect(code).not.toContain("createHandoff()");
+  });
+});
+
 test("`await` in markup is rewritten around", async () => {
   // Rendering it needs `experimental.async`; only the rewrite is checked.
   const sources = await specializedLibrary({
