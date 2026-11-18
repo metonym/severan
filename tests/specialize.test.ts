@@ -474,6 +474,26 @@ describe("dropUnusedDeclarations", () => {
     expect(code).not.toContain("let handoff");
   });
 
+  test("keeps functions an action, transition or animation names", () => {
+    const { code, dropped } = dropUnusedDeclarations(
+      `<script>
+  function tip(node) {}
+  const actions = { focus(node) {} };
+  function fade(node) { return {}; }
+  const slide = (node) => ({});
+  function grow(node) { return {}; }
+  function flip(node, rects) { return {}; }
+  function unused() {}
+</script>
+{#each [1] as item (item)}<div use:tip use:actions.focus transition:fade in:slide out:grow animate:flip>{item}</div>{/each}`,
+    );
+    expect(dropped).toBe(1);
+    expect(code).not.toContain("function unused");
+    for (const name of ["tip", "actions", "fade", "slide", "grow", "flip"]) {
+      expect(code).toMatch(new RegExp(`(function|const) ${name}\\b`));
+    }
+  });
+
   test("keeps an unread function that has overload signatures", () => {
     const { code, dropped } = dropUnusedDeclarations(
       `<script lang="ts">

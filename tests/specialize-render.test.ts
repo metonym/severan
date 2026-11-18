@@ -778,6 +778,27 @@ describe("empty rest objects", () => {
 
 // A handler only a removed branch calls goes, and so does the helper it
 // creates lazily; a handler the markup still calls stays.
+// An action or transition only runs in the browser, so SSR can't show one
+// whose function or prop was removed: check the rewrite keeps them.
+test("functions and props a directive names are kept", async () => {
+  const code = (
+    await specializedLibrary({
+      lib: {
+        "Act.svelte": `<script>
+  export let action = (node) => {};
+  function reflect(node) {}
+  function fade(node) { return {}; }
+</script>
+<div use:action use:reflect transition:fade />`,
+      },
+      app: appRendering("<Act />"),
+    })
+  )["Act.svelte"];
+  expect(code ?? "").toContain("action = (node) => {}");
+  expect(code ?? "").toContain("function reflect");
+  expect(code ?? "").toContain("function fade");
+});
+
 describe("functions only a removed branch calls", () => {
   const lib = {
     "handoff.js": "export function createHandoff() { return { enter() {} }; }",
