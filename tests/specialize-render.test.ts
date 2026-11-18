@@ -470,6 +470,61 @@ describe("props nothing reads anymore", () => {
   });
 });
 
+// A prop no call site passes or binds holds the component's own state:
+// it's declared with `let`, not `export let`.
+
+const LOCAL_LIBRARY = {
+  "Toggle.svelte": `<script context="module">
+  let count = 0;
+</script>
+<script>
+  export let open = false;
+  export let id = \`t\${count++}\`;
+  export let format = (value) => \`[\${value}]\`;
+  $: open = open || id.length > 5;
+</script>
+<p {id}>{format(open)}</p><span>{Object.keys($$props).join()}</span>`,
+};
+
+const local = (markup: string, script = ""): LibraryApp => ({
+  lib: LOCAL_LIBRARY,
+  app: appRendering(markup, script),
+});
+
+const LOCAL: Record<string, LibraryApp> = {
+  "nothing passed": local("<Toggle /><Toggle />"),
+  "passed at one site": local("<Toggle /><Toggle open />"),
+  "bound at one site": local(
+    "<Toggle /><Toggle bind:open={o} />{o}",
+    "let o = false;",
+  ),
+  "an id passed": local('<Toggle id="a-long-id" /><Toggle />'),
+};
+
+describe("props no site passes", () => {
+  const cases = Object.keys(LOCAL).flatMap((name): [string, boolean][] => [
+    [name, false],
+    [name, true],
+  ]);
+  test.each(cases)("%s (unwrap: %p)", async (name, unwrap) => {
+    const { before, after } = await renderSpecialized(LOCAL[name], { unwrap });
+    expect(after).toBe(before);
+  });
+
+  test("become the component's own state", async () => {
+    const sources = await specializedLibrary(local("<Toggle />"));
+    expect(sources["Toggle.svelte"]).not.toContain("export let");
+  });
+
+  test("stay props where a site passes or binds them", async () => {
+    const sources = await specializedLibrary(
+      local("<Toggle bind:open={o} />", "let o = false;"),
+    );
+    expect(sources["Toggle.svelte"]).toContain("export let open");
+    expect(sources["Toggle.svelte"]).not.toContain("export let id");
+  });
+});
+
 // A bare `on:click` hands the event to the component's listeners; with none
 // at any call site, it does nothing and goes. Rendering can't show a
 // listener, so these read the rewritten source.

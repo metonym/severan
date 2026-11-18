@@ -19,6 +19,10 @@
   removed when no call site passes a key the rest would hold. A spread on
   an element stays: it decides how Svelte renders the element's
   attributes. Carbon's gzipped client JS is 28.0% smaller (27.9%).
+- A prop no call site passes or binds is declared with `let`, not
+  `export let`: Svelte compiles it as the component's own state instead of
+  a prop. Carbon's gzipped client JS is 29.5% smaller (28.0%), and
+  sveltestrap's 22.0% (21.6%).
 
 ## 0.5.0
 
