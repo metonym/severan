@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**
+
+- An element's `value={…}` that may be nullish is no longer folded, and a
+  prop it reads is no longer declared with `let`: Svelte skips an initial
+  nullish `value` it reads from state but writes a literal one as `""`, so
+  a checkbox submitted `""` instead of `"on"` and an `<option>` lost its
+  text as its value (svelte-ux's `Checkbox`). SSR renders both the same.
+
 ## 0.7.1
 
 **Fixes**

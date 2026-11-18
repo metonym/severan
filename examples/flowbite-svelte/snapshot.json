@@ -2,7 +2,7 @@
   "library": "flowbite-svelte@1.33.1",
   "rewritten": {
     "components": 42,
-    "edits": 434,
+    "edits": 432,
     "tables": {
       "pruned": 23,
       "emptied": 118,
@@ -16,7 +16,7 @@
       "gzip": 84125
     },
     "severan": {
-      "bytes": 165974,
+      "bytes": 165976,
       "gzip": 52789
     },
     "gzipSmallerBy": "37.2%"

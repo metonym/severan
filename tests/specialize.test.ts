@@ -366,7 +366,7 @@ describe("props nothing reads anymore", () => {
   export let label = "";
   function clear() { value = ""; open = !open; }
 </script>
-<input {id} {value} {open} on:input={clear} />{label}`,
+<input {id} data-value={value} {open} on:input={clear} />{label}`,
       { label: "Name" },
     );
     expect(code).toContain("\n  let id = uniqueId();");
@@ -402,6 +402,34 @@ describe("props nothing reads anymore", () => {
       { dropUnused: false },
     );
     expect(code).toContain(`${ignore}\n  export let warn = false;`);
+  });
+});
+
+describe("an element's `value`", () => {
+  test("stays as written where it may be nullish, and its prop stays a prop", () => {
+    const code = specialize(
+      `<script>
+  export let value = undefined;
+  export let checked = false;
+  export let kind = "a";
+</script>
+<input type="checkbox" bind:checked {value} />
+<option value={kind === "b" ? "x" : undefined}>{kind}</option>`,
+    );
+    expect(code).toContain("export let value = undefined;");
+    expect(code).toContain("{value}");
+    expect(code).toContain(`value={kind === "b" ? "x" : undefined}`);
+  });
+
+  test("folds where it can't be nullish", () => {
+    const code = specialize(
+      `<script>
+  export let value = "on";
+</script>
+<input type="checkbox" {value} />`,
+      { value: "yes" },
+    );
+    expect(code).toContain(`value={"yes"}`);
   });
 });
 
