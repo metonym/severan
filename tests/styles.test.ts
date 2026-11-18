@@ -1,9 +1,19 @@
 import { appRendering, prunedStyles } from "./helpers/render-library";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { analyzeFiles } from "../src/analysis";
 import {
   createStylePruner,
   definedClasses,
+  isSafelisted,
+  libraryStylePruner,
   stylesheetFiles,
 } from "../src/styles";
+import { CARBON, FAILURE } from "./helpers/carbon";
+
+const BTN_G = /^\.btn-g/;
+const BX_BTN_DANGER = /^\.bx--btn--danger/;
 
 const rules = (css: string) =>
   css
@@ -140,6 +150,19 @@ describe("pruneStyles", () => {
     expect(kept).toContain(".page");
   });
 
+  test("keeps a selector `safelist` matches whole", async () => {
+    const kept = await pruned("<Button />", "", {
+      safelist: [".alert-danger", BTN_G],
+      emitted: `${CSS}\n.alert .alert-danger { a: 12 }`,
+    });
+    // A class keeps every selector it's in, even with classes that go.
+    expect(kept).toContain(".alert-danger");
+    expect(kept).toContain(".alert .alert-danger");
+    expect(kept).not.toContain(".alert");
+    expect(kept).toContain(".btn-ghost");
+    expect(kept).not.toContain(".btn-lg");
+  });
+
   test("keeps classes outside the namespace `classTokens` reads", async () => {
     const css =
       ".my-btn { a: 1 }\n.my-btn.up-icon { a: 2 }\n.my-ghost { a: 3 }";
@@ -191,4 +214,50 @@ describe("stylesheetFiles", () => {
   ])("rejects %s", (stylesheet, message) => {
     expect(() => stylesheetFiles([stylesheet], process.cwd())).toThrow(message);
   });
+});
+
+test.each([
+  [".x--grid:hover", ["x--grid"], true],
+  ["div.x--grid", [".x--grid"], true],
+  [".x--grid-narrow", ["x--grid"], false],
+  [".sm\\:p-4", ["sm:p-4"], true],
+  [".x--tag--red", [/^\.x--tag--/g], true],
+  [".x--tag--red", [/^\.x--tag--/g], true],
+] as const)("isSafelisted(%p, %p) is %p", (selector, safelist, expected) => {
+  expect(isSafelisted(selector, safelist)).toBe(expected);
+});
+
+test("libraryStylePruner prunes with an analysis made without `specializeFiles`", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "styles-"));
+  try {
+    const file = join(dir, "App.svelte");
+    const code = `<script>import { Button } from "carbon-components-svelte";</script>\n<Button kind="tertiary">Hi</Button>`;
+    writeFileSync(file, code);
+    const library = {
+      ...CARBON,
+      styles: { stylesheets: ["carbon-components-svelte/css/white.css"] },
+    };
+    const result = await analyzeFiles({
+      library,
+      failure: FAILURE,
+      projectRoot: process.cwd(),
+      files: [{ file, code }],
+      components: ["Button"],
+      options: {},
+    });
+    if ("warning" in result) throw new Error(result.warning);
+    const prune = libraryStylePruner({
+      spec: library,
+      projectRoot: process.cwd(),
+      isPruned: result.isPruned,
+      files: [{ code }],
+      safelist: [BX_BTN_DANGER],
+    });
+    const { css } = prune?.(
+      ".bx--btn--tertiary{a:1}.bx--btn--ghost{a:2}.bx--btn--danger{a:3}",
+    ) ?? { css: "" };
+    expect(css).toBe(".bx--btn--tertiary{a:1}.bx--btn--danger{a:3}");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

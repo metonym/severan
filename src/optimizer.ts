@@ -44,10 +44,12 @@ export type SeveranOptions = {
   report?: boolean;
 
   /**
-   * Classes of the library's stylesheets (`styles` in the `LibrarySpec`) to
-   * keep whatever renders: ones the app builds from data at runtime.
+   * Selectors of the library's stylesheets (`styles` in the `LibrarySpec`)
+   * to keep whatever renders, for classes the app builds from data at
+   * runtime: a class (`"x--tag--red"`, with or without its `.`) keeps every
+   * selector it's in, a RegExp every selector it matches (`/^\.x--tag--/`).
    */
-  safelist?: string[];
+  safelist?: Array<string | RegExp>;
 };
 
 const DEFAULT_CONTENT = [

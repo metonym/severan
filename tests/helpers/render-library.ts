@@ -231,7 +231,7 @@ export async function prunedStyles(
   css: string,
   styles: {
     keep?: string[];
-    safelist?: string[];
+    safelist?: Array<string | RegExp>;
     emitted?: string;
     classTokens?: LibrarySpec["classTokens"];
   } = {},
