@@ -554,6 +554,75 @@ describe("events nothing listens to", () => {
   });
 });
 
+// A rest object no site passes a key to is empty: spreading it on a
+// component or into an object adds nothing. On an element it stays, since
+// a spread there decides how Svelte renders the element's attributes.
+
+const REST_LIBRARY = {
+  "Field.svelte": `<script>
+  import Inner from "./Inner.svelte";
+  export let label = "l";
+  $: attrs = { title: label, ...$$restProps };
+</script>
+<Inner {...$$restProps} />
+<li class:on={false} {...attrs}>{label}</li>`,
+  "Inner.svelte": `<script>
+  export let kind = "a";
+</script>
+<span data-keys={Object.keys($$restProps).join()}>{kind}</span>`,
+  "Item.svelte": `<script>
+  let size = "";
+  export function grow() {
+    size = "lg";
+  }
+</script>
+<li style="color: red" class={size} {...$$restProps}>x</li>`,
+};
+
+const rest = (markup: string): LibraryApp => ({
+  lib: REST_LIBRARY,
+  app: appRendering(markup),
+});
+
+const REST: Record<string, LibraryApp> = {
+  "no key passed": rest('<Field /><Field label="m" />'),
+  "a key passed at one site": rest('<Field /><Field data-x="1" />'),
+  "a key Inner declares": rest('<Field kind="b" />'),
+  "on an element": rest("<Item />"),
+};
+
+describe("empty rest objects", () => {
+  const cases = Object.keys(REST).flatMap((name): [string, boolean][] => [
+    [name, false],
+    [name, true],
+  ]);
+  test.each(cases)("%s (unwrap: %p)", async (name, unwrap) => {
+    const { before, after } = await renderSpecialized(REST[name], { unwrap });
+    expect(after).toBe(before);
+  });
+
+  test("are no longer spread on components or into objects", async () => {
+    const sources = await specializedLibrary(rest("<Field />"));
+    expect(sources["Field.svelte"]).not.toContain("$$restProps");
+    expect(sources["Field.svelte"]).toContain("{...attrs}");
+  });
+
+  test("stay spread on an element", async () => {
+    const sources = await specializedLibrary(rest("<Item />"));
+    expect(sources["Item.svelte"] ?? "{...$$restProps}").toContain(
+      "{...$$restProps}",
+    );
+  });
+
+  test("keep a spread some site passes a key to", async () => {
+    const sources = await specializedLibrary(
+      rest('<Field /><Field data-x="1" />'),
+    );
+    expect(sources["Field.svelte"]).toContain("<Inner {...$$restProps} />");
+    expect(sources["Field.svelte"]).toContain("...$$restProps }");
+  });
+});
+
 test("`await` in markup is rewritten around", async () => {
   // Rendering it needs `experimental.async`; only the rewrite is checked.
   const sources = await specializedLibrary({

@@ -15,6 +15,10 @@
   instance whose `$on` the app calls keeps every one. sveltestrap's
   gzipped client JS is 21.6% smaller (20.8%); Carbon's loses 5 KB before
   gzip.
+- `{...$$restProps}` on a component, and `...$$restProps` in an object, are
+  removed when no call site passes a key the rest would hold. A spread on
+  an element stays: it decides how Svelte renders the element's
+  attributes. Carbon's gzipped client JS is 28.0% smaller (27.9%).
 
 ## 0.5.0
 

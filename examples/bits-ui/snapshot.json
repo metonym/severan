@@ -2,7 +2,7 @@
   "library": "bits-ui@2.19.5",
   "rewritten": {
     "components": 29,
-    "edits": 88,
+    "edits": 89,
     "tables": {
       "pruned": 0,
       "emptied": 0,
@@ -16,10 +16,10 @@
       "gzip": 30728
     },
     "severan": {
-      "bytes": 105564,
-      "gzip": 30094
+      "bytes": 105344,
+      "gzip": 30066
     },
-    "gzipSmallerBy": "2.1%"
+    "gzipSmallerBy": "2.2%"
   },
   "css": {
     "original": {
