@@ -47,5 +47,9 @@ jobs:
       - name: Install dependencies
         run: bun ci && bun ci --cwd examples
 
+      - name: Install Chromium
+        working-directory: examples
+        run: bunx playwright install --with-deps chromium
+
       - name: Real libraries, built with and without severan
         run: bun run examples

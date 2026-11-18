@@ -37,5 +37,9 @@
     "identical": true,
     "bytes": 8709,
     "sha1": "f0d8a3f3daccaf50900eef1651e4798afc8aa5ee"
+  },
+  "browser": {
+    "steps": 5,
+    "identical": true
   }
 }

@@ -25,6 +25,7 @@ import { gzipSync } from "node:zlib";
 import { filterCss } from "caligula";
 import { requiredClasses, splitSelectorList } from "caligula/selector";
 import { wrappedList } from "../src/styles";
+import { type Browser, browserCheck, launchBrowser } from "./browser-check";
 
 const { values: args } = parseArgs({
   options: {
@@ -174,7 +175,7 @@ function lostSelectors(original: string, pruned: string, html: string) {
 const percent = (before: number, after: number) =>
   `${(((before - after) / before) * 100).toFixed(1)}%`;
 
-async function snapshot(dir: string) {
+async function snapshot(dir: string, browser: Browser) {
   const { loadLibrary } = await import(path.join(EXAMPLES, "vite.shared.js"));
   const library = await loadLibrary(dir);
   const { version } = JSON.parse(
@@ -186,6 +187,7 @@ async function snapshot(dir: string) {
   // One at a time: severan writes the example's `node_modules/.severan`.
   const original = await build(dir, "original");
   const severan = await build(dir, "severan");
+  const inBrowser = await browserCheck(browser, dir);
 
   // What the plugin rewrote, from the same analysis.
   const { specializeFiles } = await import(path.join(ROOT, "dist/index.js"));
@@ -246,6 +248,7 @@ async function snapshot(dir: string) {
         },
       }),
     },
+    browser: inBrowser,
   };
 }
 
@@ -277,10 +280,12 @@ const names = readdirSync(EXAMPLES).filter(
       existsSync(path.join(EXAMPLES, name, "library.js"))) &&
     (!args.only || args.only.split(",").includes(name)),
 );
-// The examples build in parallel, each in its own directory.
+// The examples build in parallel, each in its own directory, and share
+// one browser.
+const browser = await launchBrowser();
 const snapshots = await Promise.all(
-  names.map((name) => snapshot(path.join(EXAMPLES, name))),
-);
+  names.map((name) => snapshot(path.join(EXAMPLES, name), browser)),
+).finally(() => browser.close());
 let failed = false;
 const rows: string[] = [];
 for (const [i, name] of names.entries()) {
@@ -292,8 +297,15 @@ for (const [i, name] of names.entries()) {
     : undefined;
   const changed = differences(recorded, current);
   rows.push(
-    `${name.padEnd(18)} JS ${current.js.gzipSmallerBy.padStart(6)}  CSS ${current.css.gzipSmallerBy.padStart(6)}  HTML ${current.html.identical ? "identical" : "DIFFERENT"}`,
+    `${name.padEnd(18)} JS ${current.js.gzipSmallerBy.padStart(6)}  CSS ${current.css.gzipSmallerBy.padStart(6)}  HTML ${current.html.identical ? "identical" : "DIFFERENT"}  browser ${current.browser.identical ? `identical (${current.browser.steps} pages)` : "DIFFERENT"}`,
   );
+  if (!current.browser.identical) {
+    failed = true;
+    const { step, original, severan } = current.browser.firstDifference ?? {};
+    console.error(
+      `${name}: behaves differently with severan in the browser (${step})\n  original: …${original}…\n  severan:  …${severan}…`,
+    );
+  }
   if (current.css.renderedSelectorsLost > 0) failed = true;
   if (!current.html.identical) {
     failed = true;
