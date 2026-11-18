@@ -270,6 +270,40 @@ function eventDispatchers(ast: AST.Root): Set<string> {
   return names;
 }
 
+function isElementNode(node: Node | null): boolean {
+  return node?.type === "RegularElement" || node?.type === "SvelteElement";
+}
+
+function mayBeNullish(value: Value): boolean {
+  return value === UNKNOWN || [...value].some((p) => p == null);
+}
+
+/** Names an element's `value={…}` reads (see the `Attribute` case above). */
+function valueAttributeReads(ast: AST.Root): Set<string> {
+  const names = new Set<string>();
+  walk(ast.fragment, {
+    enter(node, parent) {
+      if (
+        node.type !== "Attribute" ||
+        node.name !== "value" ||
+        !isElementNode(parent) ||
+        node.value === true
+      ) {
+        return;
+      }
+      walk(node, {
+        enter(inner, outer) {
+          if (inner.type === "Identifier" && isReference(inner, outer)) {
+            names.add(inner.name);
+          }
+        },
+      });
+      return SKIP;
+    },
+  });
+  return names;
+}
+
 function isComponentNode(node: Node | null): boolean {
   return (
     node?.type === "Component" ||
@@ -661,8 +695,21 @@ export function specializeComponent(
       }
 
       case "Attribute": {
-        // `{kind}` shorthand: expand it while folding, or leave it alone.
         const { value } = node;
+        // An element's `value={x}` that may be nullish stays as written:
+        // Svelte skips an initial nullish `value` it reads from state, but
+        // writes a literal one as `""` (an `<option>` then loses its text
+        // as its value, a checkbox submits `""`, not `"on"`).
+        if (
+          node.name === "value" &&
+          isElementNode(parent) &&
+          value !== true &&
+          !Array.isArray(value) &&
+          mayBeNullish(valueAt(value.expression))
+        ) {
+          return;
+        }
+        // `{kind}` shorthand: expand it while folding, or leave it alone.
         if (
           value !== true &&
           !Array.isArray(value) &&
@@ -1111,7 +1158,10 @@ function removablePropsOf(scope: Scope): PropRules {
   if (usage.open || model.customElement) return NO_PROP_RULES;
   const passed = (name: string) =>
     usage.props.has(model.propNames.get(name) ?? name);
-  const local = (name: string) => !passed(name);
+  // A prop an element's `value` reads stays one: Svelte would write a
+  // local's initial `undefined` as `""` (see `valueAttributeReads`).
+  const values = valueAttributeReads(model.ast);
+  const local = (name: string) => !passed(name) && !values.has(name);
   if (!REST_PROPS.test(model.code)) return { removable: () => true, local };
   return { removable: local, local };
 }
