@@ -18,6 +18,8 @@ import {
  *
  * Runs on production builds only, before Svelte compiles. Rewritten
  * components come with source maps back to their original source. With
+ * `styles` in `library`, the CSS a build emits loses the rules of the
+ * library's stylesheets that nothing can match. With
  * Tailwind installed, every build (the dev server's included) writes what
  * of the library can render to `node_modules/.severan/<name>`, for Tailwind
  * to scan instead of the package.
@@ -96,6 +98,31 @@ export function severan(
       }
       const error = optimizer.error();
       if (error) this.error(error);
+    },
+    // After every other plugin's: Vite emits CSS assets in its own.
+    generateBundle: {
+      order: "post",
+      handler(_, bundle) {
+        if (serving) return;
+        const assets = new Map<string, string>();
+        for (const file of Object.values(bundle)) {
+          if (file.type !== "asset" || !file.fileName.endsWith(".css"))
+            continue;
+          assets.set(
+            file.fileName,
+            typeof file.source === "string"
+              ? file.source
+              : new TextDecoder().decode(file.source),
+          );
+        }
+        if (assets.size === 0) return;
+        const info = optimizer.pruneStyles(assets);
+        for (const [fileName, css] of assets) {
+          const file = bundle[fileName];
+          if (file?.type === "asset") file.source = css;
+        }
+        if (info) this.info?.(info);
+      },
     },
   };
 }

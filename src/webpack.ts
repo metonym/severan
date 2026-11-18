@@ -39,7 +39,17 @@ type WebpackCompilation = {
         callback: (modules: Iterable<WebpackModule>) => void,
       ): void;
     };
+    processAssets: {
+      tap(
+        options: { name: string; stage: number },
+        callback: (assets: Record<string, unknown>) => void,
+      ): void;
+    };
   };
+  getAsset(
+    name: string,
+  ): { source: { source(): string | Uint8Array } } | undefined;
+  updateAsset(name: string, source: unknown): void;
   warnings: { push(error: Error): void };
   errors: { push(error: Error): void };
 };
@@ -57,7 +67,11 @@ type Resolver = {
 export type WebpackCompiler = {
   options: { mode?: string; module: { rules: unknown[] } };
   context: string;
-  webpack: { WebpackError: new (message: string) => Error };
+  webpack: {
+    WebpackError: new (message: string) => Error;
+    Compilation: { PROCESS_ASSETS_STAGE_OPTIMIZE: number };
+    sources: { RawSource: new (source: string) => unknown };
+  };
   hooks: {
     beforeRun: AsyncHook;
     watchRun: AsyncHook;
@@ -251,6 +265,38 @@ export class SeveranPlugin {
         const error = optimizer.error();
         if (error) compilation.errors.push(new WebpackError(error));
       });
+      // Before the optimize-size stage, where CSS minimizers run.
+      compilation.hooks.processAssets.tap(
+        {
+          name,
+          stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_OPTIMIZE,
+        },
+        (assets) => {
+          const css = new Map<string, string>();
+          for (const asset of Object.keys(assets)) {
+            if (!asset.endsWith(".css")) continue;
+            const source = compilation.getAsset(asset)?.source.source();
+            if (source === undefined) continue;
+            css.set(
+              asset,
+              typeof source === "string"
+                ? source
+                : new TextDecoder().decode(source),
+            );
+          }
+          if (css.size === 0) return;
+          const original = new Map(css);
+          const info = optimizer.pruneStyles(css);
+          for (const [asset, pruned] of css) {
+            if (pruned === original.get(asset)) continue;
+            compilation.updateAsset(
+              asset,
+              new compiler.webpack.sources.RawSource(pruned),
+            );
+          }
+          if (info) compiler.getInfrastructureLogger(name).info(info);
+        },
+      );
     });
   }
 }

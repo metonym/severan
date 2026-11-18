@@ -15,6 +15,7 @@ import {
   type Scope,
 } from "./evaluate";
 import type { Library } from "./library";
+import { classTokensOf } from "./library-paths";
 import { type LiveResult, walkLive } from "./live-walk";
 import { listJsAndSvelteFiles, packageSignature } from "./package";
 import {
@@ -103,7 +104,7 @@ export async function scanLibrarySources(
     const code = codes[i];
     const isScript = file.endsWith(".js");
     if (isScript) {
-      library.spec.classTokens?.script(code, sources.scriptTokens);
+      classTokensOf(library.spec)?.script(code, sources.scriptTokens);
       if (GET_CONTEXT.test(code)) sources.scriptReadsContext = true;
     }
     for (const match of code.matchAll(SET_CONTEXT)) {

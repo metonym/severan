@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+**Features**
+
+- `styles` in the `LibrarySpec` names the library's stylesheets, and
+  production builds remove from the CSS they emit the rules that need a
+  class those stylesheets define and nothing can render: no live component
+  under the app's props, no script module of the library, no file in
+  `content`. Classes they don't define never remove a rule. A `safelist`
+  option keeps classes the app builds from data. Gzipped CSS of the
+  examples: Carbon's `white.css` 71.3% smaller, sveltestrap's Bootstrap
+  44.2%. `specializeFiles` returns the pruner as `pruneStyles`.
+- `classTokens` is optional with `styles`: without it, every run of word
+  characters and hyphens reads as a class.
+- A `class` attribute built from text and `{expressions}`
+  (`class="btn btn-{size}"`) is read as its values when the analysis can
+  evaluate them, not as the prefix `btn-`, so `isPruned` keeps fewer
+  classes.
+
 ## 0.6.0
 
 **Features**

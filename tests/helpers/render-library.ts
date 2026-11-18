@@ -220,6 +220,50 @@ export async function specializedLibrary(
   }
 }
 
+/**
+ * What `pruneStyles` leaves of `css` (or of `emitted`, the CSS a build
+ * emits) once `shape`'s library is specialized for its app, with `styles`
+ * naming `css` as the library's `src/styles.css`; the warning, if the
+ * analysis fails.
+ */
+export async function prunedStyles(
+  shape: LibraryApp,
+  css: string,
+  styles: {
+    keep?: string[];
+    safelist?: string[];
+    emitted?: string;
+    classTokens?: LibrarySpec["classTokens"];
+  } = {},
+): Promise<string> {
+  const { root, files } = writeProject({
+    ...shape,
+    lib: { "styles.css": css, ...shape.lib },
+  });
+  try {
+    const result = await specializeFiles({
+      library: {
+        ...MYLIB,
+        classTokens: styles.classTokens,
+        styles: {
+          stylesheets: [`${MYLIB.name}/src/styles.css`],
+          keep: styles.keep,
+        },
+      },
+      projectRoot: root,
+      files,
+      failure: { feature: "specialize", fallback: "nothing was rewritten" },
+      options: { unwrap: false },
+      safelist: styles.safelist,
+    });
+    if ("warning" in result) return result.warning;
+    if (!result.pruneStyles) throw new Error("no pruneStyles");
+    return result.pruneStyles(styles.emitted ?? css).css;
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
 /** An `App.svelte` that imports the library components `markup` renders. */
 export function appRendering(
   markup: string,

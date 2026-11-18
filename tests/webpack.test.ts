@@ -73,6 +73,81 @@ const APP = {
   "src/index.js": `import App from "./App.svelte";\nconsole.log(App);`,
 };
 
+describe("SeveranPlugin with `styles`", () => {
+  const CSS = ".bx--btn--tertiary{a:1}.bx--btn--danger{a:2}.app-shell{a:3}";
+
+  /** Emits `main.css` the way a CSS extraction plugin would, before severan's stage. */
+  class EmitCss {
+    apply(compiler: webpack.Compiler) {
+      compiler.hooks.thisCompilation.tap("EmitCss", (compilation) => {
+        compilation.hooks.processAssets.tap(
+          {
+            name: "EmitCss",
+            stage: webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL,
+          },
+          () => {
+            compilation.emitAsset(
+              "main.css",
+              new compiler.webpack.sources.RawSource(CSS),
+            );
+          },
+        );
+      });
+    }
+  }
+
+  test("prunes the library's rules nothing renders from emitted CSS", async () => {
+    const project = createFakeProject();
+    project.linkCarbon();
+    for (const [file, code] of Object.entries(APP)) {
+      mkdirSync(path.dirname(path.join(project.root, file)), {
+        recursive: true,
+      });
+      writeFileSync(path.join(project.root, file), code);
+    }
+    try {
+      const compiler = webpack({
+        mode: "production",
+        context: project.root,
+        entry: "./src/index.js",
+        output: { path: path.join(project.root, "out") },
+        module: { rules: [{ test: SVELTE_FILE, loader: SVELTE_LOADER }] },
+        optimization: { minimize: false },
+        devtool: false,
+        plugins: [
+          new EmitCss(),
+          new SeveranPlugin(
+            {
+              ...CARBON,
+              styles: {
+                stylesheets: ["carbon-components-svelte/css/white.css"],
+              },
+            },
+            { silent: true },
+          ),
+        ],
+        infrastructureLogging: { level: "none" },
+      });
+      const stats = await new Promise<webpack.Stats>((resolve, reject) =>
+        compiler.run((error, result) =>
+          error || !result ? reject(error) : resolve(result),
+        ),
+      );
+      await new Promise((resolve) => compiler.close(resolve));
+      expect(stats.hasErrors()).toBe(false);
+      const css = readFileSync(
+        path.join(project.root, "out", "main.css"),
+        "utf8",
+      );
+      expect(css).toContain(".bx--btn--tertiary{a:1}");
+      expect(css).not.toContain("bx--btn--danger");
+      expect(css).toContain(".app-shell{a:3}");
+    } finally {
+      project.dispose();
+    }
+  });
+});
+
 describe("SeveranPlugin", () => {
   test("hands the next loader Carbon rewritten for the app", async () => {
     const { stats, code, dispose } = await build(APP);

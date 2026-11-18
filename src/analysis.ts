@@ -22,6 +22,7 @@ import {
   type SpecializeOptions,
   specializeComponent,
 } from "./specialize";
+import { libraryStylePruner, type StylePruner } from "./styles";
 import type { CallSite } from "./usage";
 import { errorMessage, isSvelteFile, realpath, stripQuery } from "./util";
 import { formatValue, UNKNOWN } from "./values";
@@ -345,6 +346,11 @@ export type SpecializedComponents = {
    * imports it doesn't read (a script, a stylesheet).
    */
   readImport: (importer: string, id: string) => boolean;
+  /**
+   * With `styles` in the `LibrarySpec`: removes the rules of `css` that need
+   * a class the library's stylesheets define and nothing can render.
+   */
+  pruneStyles?: StylePruner;
 };
 
 /** Rewrites each library component `files` render, and each app component whose every call site they hold. */
@@ -356,6 +362,8 @@ export async function specializeFiles(input: {
   /** Aliased `.svelte` imports the bundler resolved, by `importKey`. */
   resolvedImports?: ReadonlyMap<string, string>;
   failure: Failure;
+  /** Classes `pruneStyles` keeps whatever renders: ones the app builds from data. */
+  safelist?: readonly string[];
 }): Promise<SpecializedComponents | { warning: string }> {
   let appUsage: AppUsage;
   let library: Library;
@@ -447,7 +455,20 @@ export async function specializeFiles(input: {
   const read = new Map(
     [...appUsage.read].map(([file, usage]) => [realpath(file) ?? file, usage]),
   );
+  let pruneStyles: StylePruner | undefined;
+  try {
+    pruneStyles = libraryStylePruner({
+      spec: input.library,
+      projectRoot: input.projectRoot,
+      isPruned: result.isPruned,
+      files: input.files,
+      safelist: input.safelist,
+    });
+  } catch (error) {
+    return { warning: failure(input.library, error, input.failure) };
+  }
   return {
+    ...(pruneStyles && { pruneStyles }),
     sources,
     edits,
     closed: appUsage.closed,

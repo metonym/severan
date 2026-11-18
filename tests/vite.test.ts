@@ -28,7 +28,20 @@ type ResolvedPlugin = {
   load(id: string): { code: string; map: { mappings: string } } | undefined;
   transform(code: string, id: string): void;
   buildEnd(this: Context & GraphContext): Promise<void>;
+  generateBundle: {
+    order: string;
+    handler(this: Context, options: unknown, bundle: Bundle): void;
+  };
 };
+
+type Bundle = Record<
+  string,
+  | { type: "asset"; fileName: string; source: string | Uint8Array }
+  | {
+      type: "chunk";
+      fileName: string;
+    }
+>;
 
 type GraphContext = {
   getModuleIds(): IterableIterator<string>;
@@ -55,6 +68,7 @@ function context(aliases: Record<string, string> = {}): Context & GraphContext {
 }
 
 const REWROTE = /^rewrote \d+ Carbon components for this app/;
+const REMOVED_ONE_RULE = /^removed 1 unused Carbon CSS rules/;
 const MISSED_TOOLBAR =
   /before seeing lib\/Toolbar\.ts, which imports them\. Add those files to `content`/;
 const MISSED_MARKDOWN = /before seeing lib\/Toolbar\.md, which imports them/;
@@ -93,6 +107,77 @@ function setUp(
   plugin.configResolved({ root: project.root });
   return { project, carbon, plugin };
 }
+
+describe("severan/vite with `styles`", () => {
+  const STYLED = {
+    ...CARBON,
+    styles: { stylesheets: ["carbon-components-svelte/css/white.css"] },
+  };
+  const CSS =
+    ".bx--btn--tertiary{a:1}.bx--btn--danger{a:2}.app-shell{a:3}.bx--btn--tertiary,.bx--btn--danger{a:4}";
+  const bundleOf = (css: string): Bundle => ({
+    "assets/index.css": {
+      type: "asset",
+      fileName: "assets/index.css",
+      source: new TextEncoder().encode(css),
+    },
+    "index.js": { type: "chunk", fileName: "index.js" },
+  });
+  const cssOf = (bundle: Bundle) => {
+    const asset = bundle["assets/index.css"];
+    if (asset.type !== "asset") return "";
+    return typeof asset.source === "string"
+      ? asset.source
+      : new TextDecoder().decode(asset.source);
+  };
+
+  test("prunes the library's rules nothing renders from emitted CSS", async () => {
+    const project = createFakeProject();
+    project.linkCarbon();
+    mkdirSync(path.join(project.root, "src"));
+    writeFileSync(
+      path.join(project.root, "src", "App.svelte"),
+      `<script>${IMPORT_BUTTON}</script>\n<Button kind="tertiary">Save</Button>`,
+    );
+    const plugin = severan(STYLED) as unknown as ResolvedPlugin;
+    plugin.configResolved({ root: project.root });
+    try {
+      const ctx = context();
+      await plugin.buildStart.call(ctx);
+      expect(plugin.generateBundle.order).toBe("post");
+      const bundle = bundleOf(CSS);
+      plugin.generateBundle.handler.call(ctx, {}, bundle);
+      const css = cssOf(bundle);
+      expect(css).toContain(".bx--btn--tertiary{a:1}");
+      expect(css).not.toContain("bx--btn--danger");
+      // Not a class Carbon's stylesheets define.
+      expect(css).toContain(".app-shell");
+      expect(css).toContain(".bx--btn--tertiary{a:4}");
+      expect(ctx.info.mock.calls.at(-1)?.[0]).toMatch(REMOVED_ONE_RULE);
+    } finally {
+      project.dispose();
+    }
+  });
+
+  test("leaves CSS alone without `styles`, or for the dev server", async () => {
+    const { project, plugin } = setUp(
+      `<script>${IMPORT_BUTTON}</script>\n<Button kind="tertiary">Save</Button>`,
+    );
+    try {
+      await plugin.buildStart.call(context());
+      const bundle = bundleOf(CSS);
+      plugin.generateBundle.handler.call(context(), {}, bundle);
+      expect(cssOf(bundle)).toBe(CSS);
+    } finally {
+      project.dispose();
+    }
+    const served = severan(STYLED) as unknown as ResolvedPlugin;
+    served.configResolved({ root: process.cwd(), command: "serve" });
+    const bundle = bundleOf(CSS);
+    served.generateBundle.handler.call(context(), {}, bundle);
+    expect(cssOf(bundle)).toBe(CSS);
+  });
+});
 
 describe("severan/vite", () => {
   test("runs before Svelte, rewriting production builds only", async () => {

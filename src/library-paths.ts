@@ -7,6 +7,29 @@ export type ClassTokens = {
   text(text: string): string[];
 };
 
+export type LibraryClassTokens = ClassTokens & {
+  script(code: string, into: Set<string>): void;
+};
+
+const CLASS_TOKEN = /[\w-]+/g;
+
+/** For a library with `styles` and no `classTokens`: every word, as a class. */
+const PLAIN_CLASS_TOKENS: LibraryClassTokens = {
+  marker: "",
+  text: (text) =>
+    Array.from(text.matchAll(CLASS_TOKEN), ([token]) => `.${token}`),
+  script(code, into) {
+    for (const [token] of code.matchAll(CLASS_TOKEN)) into.add(`.${token}`);
+  },
+};
+
+/** How the analysis reads `spec`'s class names, or `undefined` for not at all. */
+export function classTokensOf(
+  spec: LibrarySpec,
+): LibraryClassTokens | undefined {
+  return spec.classTokens ?? (spec.styles ? PLAIN_CLASS_TOKENS : undefined);
+}
+
 /** A Svelte component library severan reads and rewrites. */
 export type LibrarySpec = {
   /** The package apps import: `"my-library"`. */
@@ -25,10 +48,24 @@ export type LibrarySpec = {
   tool: string;
   /**
    * Reads class names, for pruning the library's styles: `text` a string
-   * containing `marker`, `script` a whole script module. Omit to read none.
+   * containing `marker`, `script` a whole script module. Omit to read none,
+   * or, with `styles`, every run of word characters and hyphens.
    */
-  classTokens?: ClassTokens & {
-    script(code: string, into: Set<string>): void;
+  classTokens?: LibraryClassTokens;
+  /**
+   * The library's stylesheets. A production build drops the rules in the
+   * CSS it emits that need a class these stylesheets define and that
+   * nothing can render: no live component, none of the library's script
+   * modules, nothing in `content`. Omit to leave CSS as it is.
+   */
+  styles?: {
+    /**
+     * Files in installed packages, each `"<package>/<path>"`, where `*`
+     * matches within a path segment: `"my-library/css/*.css"`.
+     */
+    stylesheets: readonly string[];
+    /** Classes to keep whatever renders: ones the app's page sets (`"my-body"`). */
+    keep?: readonly string[];
   };
   /**
    * `true` for a library whose classes are Tailwind's: its tailwind-variants

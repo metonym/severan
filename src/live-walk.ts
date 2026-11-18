@@ -12,11 +12,19 @@ import {
   whyUnknownLater,
 } from "./evaluate";
 import { memberOf } from "./exports";
-import type { ClassTokens, LibraryPaths } from "./library-paths";
+import {
+  type ClassTokens,
+  classTokensOf,
+  type LibraryPaths,
+} from "./library-paths";
 import { type CallSite, listens } from "./usage";
 import {
+  binary,
+  flatMap,
   isEmptyArray,
   isNeverNullish,
+  isNullish,
+  isObject,
   join,
   OBJECT,
   possible,
@@ -46,6 +54,13 @@ type Walk = LiveResult & {
   calls: WatchedCalls | undefined;
 };
 
+/** An attribute's `{expression}` as text: nothing for `null` and `undefined`. */
+function attributeText(value: Value): Value {
+  return flatMap(value, (p) =>
+    isNullish(p) ? possible("") : isObject(p) ? UNKNOWN : possible(String(p)),
+  );
+}
+
 function addTokens(text: string, result: Walk): void {
   const { tokens } = result;
   if (!tokens || !text.includes(tokens.marker)) return;
@@ -68,7 +83,7 @@ export function walkLive(
     classes: new Set(),
     prefixes: new Set(),
     childSites: [],
-    tokens: library.spec.classTokens,
+    tokens: classTokensOf(library.spec),
     library,
     calls,
   };
@@ -110,6 +125,40 @@ function visit(node: Node, scope: Scope, result: Walk): void {
         }
       }
       break;
+    }
+
+    // `class="x--btn x--btn--{size}"`: as a template literal, its values
+    // when the walk can evaluate them, else its literal parts.
+    case "Attribute": {
+      const marker = result.tokens?.marker;
+      const parts = Array.isArray(node.value) ? node.value : [];
+      if (
+        marker === undefined ||
+        !parts.some((part) => part.type === "ExpressionTag") ||
+        !parts.some(
+          (part) => part.type === "Text" && part.data.includes(marker),
+        )
+      ) {
+        break;
+      }
+      let value: Value = possible("");
+      for (const part of parts) {
+        value = binary(
+          "+",
+          value,
+          part.type === "Text"
+            ? possible(part.data)
+            : attributeText(evaluate(part.expression, scope)),
+        );
+      }
+      if (value === UNKNOWN) break;
+      for (const p of value) {
+        if (typeof p === "string") addTokens(p, result);
+      }
+      for (const part of parts) {
+        if (part.type === "ExpressionTag") visit(part, scope, result);
+      }
+      return;
     }
 
     // A template the walk can't evaluate keeps its literal parts: the
