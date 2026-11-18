@@ -24,6 +24,7 @@ import {
   splice,
 } from "./mapped-text";
 import { FOREIGN_ELEMENT, namespacesChanged } from "./namespaces";
+import { listens } from "./usage";
 import {
   isAlwaysNullish,
   isEmptyArray,
@@ -221,6 +222,14 @@ function isPure(node: Node, scope?: Scope): boolean {
   }
 }
 
+function isComponentNode(node: Node | null): boolean {
+  return (
+    node?.type === "Component" ||
+    node?.type === "SvelteSelf" ||
+    node?.type === "SvelteComponent"
+  );
+}
+
 /** Every node the walk edits has offsets; only `Fragment` doesn't. */
 function span(node: Node): Span {
   return node as unknown as Span;
@@ -409,6 +418,18 @@ export function specializeComponent(
 
       case "IfBlock":
         visitIfChain(node, parent);
+        return;
+
+      // A bare `on:click` hands the event to the component's listeners:
+      // with none, it does nothing. A modifier on an element still runs.
+      case "OnDirective":
+        if (
+          node.expression === null &&
+          !listens(scope.usage, node.name) &&
+          (node.modifiers.length === 0 || isComponentNode(parent))
+        ) {
+          replace(node, "");
+        }
         return;
 
       case "ObjectExpression": {

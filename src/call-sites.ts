@@ -24,7 +24,12 @@ import {
   instanceMembers,
   type SiteReader,
 } from "./live-walk";
-import { type CallSite, type ComponentUsage, newComponentUsage } from "./usage";
+import {
+  type CallSite,
+  type ComponentUsage,
+  listens,
+  newComponentUsage,
+} from "./usage";
 import { importKey, RE_EXT_STYLESHEET } from "./util";
 import {
   EMPTY_ARRAY,
@@ -512,6 +517,7 @@ function appEvaluator(
     bindEach: (node) => (scope ? bindEach(node, scope) : () => {}),
     instance: (expression) =>
       scope ? instanceMembers(expression, scope.model.scopes) : null,
+    forwards: (event) => !scope || listens(scope.usage, event),
   };
 }
 

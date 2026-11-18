@@ -2,7 +2,7 @@
   "library": "svelte-ux@1.0.11",
   "rewritten": {
     "components": 31,
-    "edits": 225,
+    "edits": 242,
     "tables": {
       "pruned": 0,
       "emptied": 0,
@@ -16,10 +16,10 @@
       "gzip": 70339
     },
     "severan": {
-      "bytes": 197979,
-      "gzip": 66690
+      "bytes": 197276,
+      "gzip": 66645
     },
-    "gzipSmallerBy": "5.2%"
+    "gzipSmallerBy": "5.3%"
   },
   "css": {
     "original": {

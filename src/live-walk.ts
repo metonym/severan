@@ -13,7 +13,7 @@ import {
 } from "./evaluate";
 import { memberOf } from "./exports";
 import type { ClassTokens, LibraryPaths } from "./library-paths";
-import type { CallSite } from "./usage";
+import { type CallSite, listens } from "./usage";
 import {
   isEmptyArray,
   isNeverNullish,
@@ -247,6 +247,7 @@ function elementSite(
     spread: (argument) => spreadProps(argument, scope),
     explain: explainAt(node, scope),
     instance: (expression) => instanceMembers(expression, scope.model.scopes),
+    forwards: (event) => listens(scope.usage, event),
   });
 }
 
@@ -293,6 +294,8 @@ export type SiteReader = {
   spread: (argument: Expression) => Map<string, PassedProp> | undefined;
   explain: Explain;
   instance: (expression: Expression) => Set<string> | null;
+  /** Whether a bare `on:event` passes on to a listener of the component it's in. */
+  forwards: (event: string) => boolean;
 };
 
 function explainAt(node: { start: number }, scope: Scope): Explain {
@@ -461,18 +464,33 @@ export function instanceMembers(
 export function callSiteFromElement(
   node: AST.Component | AST.SvelteSelf,
   component: string,
-  { value: evaluateExpression, spread, explain, instance }: SiteReader,
+  {
+    value: evaluateExpression,
+    spread,
+    explain,
+    instance,
+    forwards,
+  }: SiteReader,
 ): CallSite {
   const { slots, snippets, children } = readContent(node.fragment);
+  const events = new Set<string>();
   const site: CallSite = {
     component,
     open: false,
     props: new Map(),
     slots,
     ...(children && { children }),
+    events,
   };
   for (const attribute of node.attributes) {
     switch (attribute.type) {
+      case "OnDirective":
+        // A bare `on:click` hands the event on: a listener only if the
+        // component it's in has one.
+        if (attribute.expression || forwards(attribute.name)) {
+          events.add(attribute.name);
+        }
+        break;
       case "SpreadAttribute": {
         const props = spread(attribute.expression);
         if (!props) {

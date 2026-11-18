@@ -470,6 +470,90 @@ describe("props nothing reads anymore", () => {
   });
 });
 
+// A bare `on:click` hands the event to the component's listeners; with none
+// at any call site, it does nothing and goes. Rendering can't show a
+// listener, so these read the rewritten source.
+
+const EVENTS_LIBRARY = {
+  "Btn.svelte": `<button on:click on:focus on:keydown|preventDefault><slot /></button>`,
+  "Outer.svelte": `<script>
+  import Btn from "./Btn.svelte";
+</script>
+<Btn on:click on:focus={() => {}} />`,
+};
+
+const events = (markup: string, script = ""): LibraryApp => ({
+  lib: EVENTS_LIBRARY,
+  app: appRendering(markup, script),
+});
+
+describe("events nothing listens to", () => {
+  const forwards = async (shape: LibraryApp, file: string) =>
+    (await specializedLibrary(shape))[file] ??
+    EVENTS_LIBRARY[file as keyof typeof EVENTS_LIBRARY];
+
+  test("go, and a modifier on an element stays", async () => {
+    const code = await forwards(events("<Btn />"), "Btn.svelte");
+    expect(code).not.toContain("on:click");
+    expect(code).not.toContain("on:focus");
+    expect(code).toContain("on:keydown|preventDefault");
+  });
+
+  test("stay where a site listens", async () => {
+    const code = await forwards(
+      events("<Btn on:click={() => {}} /><Btn />"),
+      "Btn.svelte",
+    );
+    expect(code).toContain("on:click");
+    expect(code).not.toContain("on:focus");
+  });
+
+  test("follow forwarding through the library", async () => {
+    const listened = events("<Outer on:click={() => {}} />");
+    expect(await forwards(listened, "Outer.svelte")).toContain("<Btn on:click");
+    expect(await forwards(listened, "Btn.svelte")).toContain("on:click");
+    // Outer's own handler listens to Btn's focus.
+    expect(await forwards(listened, "Btn.svelte")).toContain("on:focus");
+
+    const unlistened = events("<Outer />");
+    expect(await forwards(unlistened, "Outer.svelte")).not.toContain(
+      "on:click",
+    );
+    expect(await forwards(unlistened, "Btn.svelte")).not.toContain("on:click");
+  });
+
+  test("follow forwarding through the app's components", async () => {
+    const shape = (markup: string): LibraryApp => ({
+      lib: EVENTS_LIBRARY,
+      app: {
+        ...appRendering(markup, 'import Wrap from "./Wrap.svelte";'),
+        "Wrap.svelte": `<script>
+  import { Btn } from "mylib";
+</script>
+<Btn on:click />`,
+      },
+    });
+    expect(
+      await forwards(shape("<Wrap on:click={() => {}} />"), "Btn.svelte"),
+    ).toContain("on:click");
+    expect(await forwards(shape("<Wrap />"), "Btn.svelte")).not.toContain(
+      "on:click",
+    );
+  });
+
+  test.each([
+    [
+      "`$on` on its instance",
+      "<Btn bind:this={b} />",
+      'let b;\n$: b?.$on("click", () => {});',
+    ],
+    ["props it can't read", "<Btn {...props} />", "export let props = {};"],
+  ])("stay with %s", async (_, markup, script) => {
+    const code = await forwards(events(markup, script), "Btn.svelte");
+    expect(code).toContain("on:click");
+  });
+});
+
 test("`await` in markup is rewritten around", async () => {
   // Rendering it needs `experimental.async`; only the rewrite is checked.
   const sources = await specializedLibrary({
