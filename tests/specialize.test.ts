@@ -454,6 +454,39 @@ describe("dropUnusedDeclarations", () => {
     expect(code).toContain('$: value = "x";');
   });
 
+  test("removes unread function declarations and what only they read", () => {
+    const { code, dropped } = dropUnusedDeclarations(
+      `<script>
+  import { createHandoff } from "./handoff.js";
+  let handoff;
+  const getHandoff = () => (handoff ??= createHandoff());
+  function onEnter() { getHandoff().enter(); }
+  function onClick() {}
+  function recurse(n) { return n && recurse(n - 1); }
+</script>
+<button on:click={onClick} />`,
+    );
+    expect(dropped).toBe(3);
+    expect(code).toContain("function onClick() {}");
+    expect(code).toContain("function recurse(n)");
+    expect(code).not.toContain("onEnter");
+    expect(code).not.toContain("getHandoff");
+    expect(code).not.toContain("let handoff");
+  });
+
+  test("keeps an unread function that has overload signatures", () => {
+    const { code, dropped } = dropUnusedDeclarations(
+      `<script lang="ts">
+  function format(value: string): string;
+  function format(value: number): string;
+  function format(value: unknown) { return String(value); }
+</script>
+<p />`,
+    );
+    expect(dropped).toBe(0);
+    expect(code).toContain("function format(value: unknown)");
+  });
+
   test("keeps declarations read by markup, stores, or directives", () => {
     const { dropped } = dropUnusedDeclarations(
       `<script>
