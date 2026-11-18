@@ -41,7 +41,6 @@ if (!result.success) {
 // the consumer's compiler, or fail where none resolves.
 for (const file of await readdir(outDir)) {
   if (!file.endsWith(".js")) continue;
-  // biome-ignore lint/performance/noAwaitInLoops: a few files, failing on the first
   if (SVELTE_IMPORT.test(await readFile(resolve(outDir, file), "utf8"))) {
     console.error(`dist/${file} imports svelte`);
     process.exit(1);

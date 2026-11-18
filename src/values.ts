@@ -226,9 +226,9 @@ export function isAlwaysNullish(value: Value): boolean {
 const EQUALITY = new Map<string, (x: Primitive, y: Primitive) => boolean>([
   ["===", (x, y) => x === y],
   ["!==", (x, y) => x !== y],
-  // biome-ignore lint/suspicious/noDoubleEquals: models `==`
+  // eslint-disable-next-line eqeqeq -- models `==`
   ["==", (x, y) => x == y],
-  // biome-ignore lint/suspicious/noDoubleEquals: models `!=`
+  // eslint-disable-next-line eqeqeq -- models `!=`
   ["!=", (x, y) => x != y],
 ]);
 const RELATIONAL = new Map<string, (x: number, y: number) => boolean>([

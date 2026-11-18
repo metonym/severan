@@ -18,5 +18,6 @@
     "tests/**/*.ts"
   ],
   "ignoreDependencies": ["carbon-components-svelte"],
+  "ignoreBinaries": ["lint"],
   "svelte": false
 }

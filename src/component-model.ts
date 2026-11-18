@@ -45,9 +45,7 @@ export type FunctionNode = Extract<
   Node,
   {
     type:
-      | "FunctionDeclaration"
-      | "FunctionExpression"
-      | "ArrowFunctionExpression";
+      "FunctionDeclaration" | "FunctionExpression" | "ArrowFunctionExpression";
   }
 >;
 
