@@ -2,7 +2,7 @@
 
 > Zero-dependency Svelte component specializer. Rewrites each component a library ships for the props your app passes it, so branches that can never render are cut from the build.
 
-A component library's `Button` handles every `kind`, `size` and state any app might ask for, and your bundle carries all of it. severan reads every call site in your app before the build, works out which values each prop can take, and hands Svelte a copy of each component rewritten for those values: props that never change become literals, `{#if}` branches that can't run are removed, and child components only those branches render are no longer bundled. Props nothing reads anymore are removed.
+A component library's `Button` handles every `kind`, `size` and state any app might ask for, and your bundle carries all of it. severan reads every call site in your app before the build, works out which values each prop can take, and hands Svelte a copy of each component rewritten for those values: props that never change become literals, `{#if}` branches that can't run are removed, and child components only those branches render are no longer bundled. Props nothing reads anymore are removed, and so are the events a component passes on (`on:click`) that no call site listens to.
 
 ```svelte
 <!-- the library's Button.svelte -->
@@ -250,8 +250,9 @@ Every message starts with `` `${tool}:` ``.
 
 - A prop passed as an expression it can't evaluate, spread from an object it can't read, or bound with `bind:` keeps every value.
 - A component used as a value (`this={Button}`, passed as a prop), imported dynamically or through an alias, or rendered from a file outside `content` keeps every variant. The plugins check the bundler's module graph after the build and fail it when a module the analysis didn't read imports the library.
-- A component whose props something other than a call site can set keeps every value: a custom element, or one bound with `bind:this` whose instance the app uses for more than calling what it exports (`$set`, an accessor, handing it on).
+- A component whose props something other than a call site can set keeps every value: a custom element, or one bound with `bind:this` whose instance the app uses for more than calling what it exports (`$set`, an accessor, `$on`, handing it on).
 - A prop nothing reads anymore stays declared where removing it would show: its default has effects (`uniqueId()`), something writes it, or a call site passes it to a component that reads `$$restProps` or `$$props`, where it would land.
+- A bare `on:click` stays wherever a call site may listen to it: one with `on:click`, one whose own forwarded `on:click` has a listener, or one the analysis can't read.
 - Content counts: snippets are props, and content outside them is `children` on Svelte 5 and a slot on Svelte 3 and 4.
 - An export of the library it can't tell apart from a component (a function that may return one) keeps every component.
 - A tailwind-variants table keeps every key when something other than a live component's call can read it: the app imports it, another table extends it, a script module reads it, a namespace or `import()` reaches it, or a component hands on what a call with slots returns. A variant whose value at some call the analysis can't evaluate (a spread, a function's parameter) keeps every key. A table nothing calls is emptied only when nothing else can read it, and a script module that mounts a component keeps every table whole.
@@ -278,9 +279,9 @@ How much it saves depends on how a library is written. Gzipped client JS of a re
 | :---------------------------- | :------------------------- | :--------- |
 | flowbite-svelte               | Tailwind variants          | 37.2%      |
 | carbon-components-svelte      | branches on props          | 27.9%      |
-| @sveltestrap/sveltestrap      | branches on props          | 20.8%      |
+| @sveltestrap/sveltestrap      | branches on props          | 21.6%      |
 | svelte-5-ui-lib               | Tailwind variants          | 18.7%      |
-| svelte-ux                     | Tailwind                   | 5.2%       |
+| svelte-ux                     | Tailwind                   | 5.3%       |
 | bits-ui                       | headless, state in classes | 2.1%       |
 | @skeletonlabs/skeleton-svelte | headless, state machines   | 0%         |
 

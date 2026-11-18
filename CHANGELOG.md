@@ -10,6 +10,11 @@
   passes it to a component that reads `$$restProps` or `$$props`. Gzipped
   client JS of the Carbon example is 27.9% smaller (24.4% before), and
   sveltestrap's 20.8% (17.6%).
+- A bare `on:click` that passes an event on is removed when no call site
+  listens to it, through the library's and the app's own components. An
+  instance whose `$on` the app calls keeps every one. sveltestrap's
+  gzipped client JS is 21.6% smaller (20.8%); Carbon's loses 5 KB before
+  gzip.
 
 ## 0.5.0
 

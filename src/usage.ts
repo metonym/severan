@@ -20,6 +20,8 @@ export type CallSite = {
   children?: boolean;
   /** `bind:this` members read off the instance; `null` if used otherwise. */
   instance?: ReadonlySet<string> | null;
+  /** Events it listens to with `on:`; unset if that can't be told. */
+  events?: ReadonlySet<string>;
   /** Only set for app files, for the report. */
   location?: { file: string; line: number };
   reason?: string;
@@ -40,7 +42,16 @@ export type ComponentUsage = {
   openReason?: string;
   /** Why each unknown prop is unknown, from the first site that made it so. */
   unknownBecause: Map<string, string>;
+  /** Events some site listens to with `on:`. */
+  events: Set<string>;
+  /** A site may listen to any event. */
+  eventsUnknown: boolean;
 };
+
+/** Whether something may listen to the component's `event` (`on:event`). */
+export function listens(usage: ComponentUsage, event: string): boolean {
+  return usage.open || usage.eventsUnknown || usage.events.has(event);
+}
 
 export function newComponentUsage(open = false): ComponentUsage {
   return {
@@ -52,6 +63,8 @@ export function newComponentUsage(open = false): ComponentUsage {
     siteCount: 0,
     appSites: [],
     unknownBecause: new Map(),
+    events: new Set(),
+    eventsUnknown: false,
   };
 }
 
@@ -66,8 +79,9 @@ function sameValue(a: Value | undefined, b: Value | undefined): boolean {
 }
 
 /**
- * Opens `site` when its target can get props no call site shows: a custom
- * element, or a `bind:this` instance (`$set`, accessors, handed on).
+ * Opens `site` when its target can get props or listeners no call site
+ * shows: a custom element, or a `bind:this` instance (`$set`, accessors,
+ * `$on`, handed on).
  */
 export function checkTarget(
   site: CallSite,
@@ -83,7 +97,10 @@ export function checkTarget(
   const { instance } = site;
   if (instance === undefined) return site;
   const props = new Set(target.propNames.values());
-  if (instance === null || [...instance].some((name) => props.has(name))) {
+  if (
+    instance === null ||
+    [...instance].some((name) => props.has(name) || name === "$on")
+  ) {
     return {
       ...site,
       open: true,
@@ -159,6 +176,17 @@ export function addCallSite(
   };
   for (const name of propNames) markAbsent(name);
   for (const name of usage.props.keys()) markAbsent(name);
+
+  if (!site.events) {
+    if (!usage.eventsUnknown) changed = true;
+    usage.eventsUnknown = true;
+  } else {
+    for (const event of site.events) {
+      if (usage.events.has(event)) continue;
+      usage.events.add(event);
+      changed = true;
+    }
+  }
 
   if (site.slots === null) {
     if (!usage.slotsUnknown) changed = true;

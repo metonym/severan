@@ -2,7 +2,7 @@
   "library": "@sveltestrap/sveltestrap@7.1.0",
   "rewritten": {
     "components": 31,
-    "edits": 225,
+    "edits": 273,
     "tables": {
       "pruned": 0,
       "emptied": 0,
@@ -16,10 +16,10 @@
       "gzip": 29823
     },
     "severan": {
-      "bytes": 70694,
-      "gzip": 23618
+      "bytes": 68460,
+      "gzip": 23367
     },
-    "gzipSmallerBy": "20.8%"
+    "gzipSmallerBy": "21.6%"
   },
   "css": {
     "original": {
