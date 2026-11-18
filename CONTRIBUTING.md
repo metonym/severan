@@ -11,7 +11,8 @@ bun ci
 bun run test          # analysis, rewriting, rendering, and both plugins on real builds
 bun run test:package  # build, pack, install, and use it as a consumer would
 bun run typecheck
-bun run lint          # biome; `bun run lint:fix` formats and applies fixes
+bun fmt --check       # `bun fmt` formats
+bun lint              # `bun run lint:all` formats and applies fixes
 bun run knip          # unused files, exports and dependencies
 bun run build         # dist/: minified ESM, rolled-up declarations, slimmed package.json
 ```
@@ -73,13 +74,14 @@ Commit first, then run `bun run bench:ab` against the commit before your change 
 
 ## Style
 
-- Match the surrounding code: TypeScript, biome formatting, plain-sentence comments at a similar density.
+- Match the surrounding code: TypeScript, `bun fmt` formatting, plain-sentence comments at a similar density.
+- `bun fmt` and `bun lint` are in Bun canary builds only until 1.4.5 ships, so CI installs canary. `bun run lint:all` formats and applies fixes, and `bun run lint:changed` does the same for staged files. There is no `lint` script: where `bun lint` isn't built in, it runs a script by that name, which would call itself. Config: the `[fmt]` and `[lint]` sections of [`bunfig.toml`](bunfig.toml). Lint warnings fail CI. Markdown is hand-formatted.
 - Conventional commits: `feat`, `fix`, `perf`, `refactor`, `bench`, `test`, `docs`, `chore`, with `!` for breaking changes. Put measured numbers in the body of `perf:` commits.
 - Update the README when behavior, options or benchmark numbers change.
 
 ## Before you finish
 
-- [ ] `bun run lint`, `bun run typecheck`, `bun run knip`, `bun run test` and `bun run test:package` pass.
+- [ ] `bun fmt --check`, `bun lint`, `bun run typecheck`, `bun run knip`, `bun run test` and `bun run test:package` pass.
 - [ ] `src/` changes: `bun run bench:ab` shows no confirmed regression, and `bun run examples` passes (or its snapshots are updated in the same commit).
 - [ ] Changes to what the analysis removes: a render test covers them.
 - [ ] The README and this guide still describe what the code does.

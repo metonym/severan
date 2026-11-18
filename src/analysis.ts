@@ -421,10 +421,10 @@ export async function specializeFiles(input: {
     // says it uses Tailwind is scanned for them, or loads the code that does.
     tables =
       input.library.tailwind === true
-        ? await (await import("./variant-tables")).specializeTables(
-            library,
-            [...appUsage.read.values()],
-            (key) => result.analysis.scopeFor(key),
+        ? await (
+            await import("./variant-tables")
+          ).specializeTables(library, [...appUsage.read.values()], (key) =>
+            result.analysis.scopeFor(key),
           )
         : {
             modules: new Map(),

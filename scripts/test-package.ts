@@ -29,7 +29,6 @@ try {
     for (let file = pending.pop(); file; file = pending.pop()) {
       if (seen.has(file)) continue;
       seen.add(file);
-      // biome-ignore lint/performance/noAwaitInLoops: a few small files, read in turn
       const code = await readFile(join(root, "dist", file), "utf8");
       if (code.includes("svelte:boundary")) {
         throw new Error(`dist/${entry} loads the parser (through ${file})`);

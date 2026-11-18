@@ -35,8 +35,7 @@ const { values: args } = parseArgs({
 const ROOT = path.join(import.meta.dirname, "..");
 const EXAMPLES = path.join(ROOT, "examples");
 const VITE = path.join(EXAMPLES, "node_modules/vite/bin/vite.js");
-const VARIANTS = ["original", "severan"] as const;
-type Variant = (typeof VARIANTS)[number];
+type Variant = "original" | "severan";
 
 if (!existsSync(VITE)) {
   console.error("Install the examples first: cd examples && bun install");
@@ -67,6 +66,7 @@ async function run(command: string, argv: string[], cwd: string, env = {}) {
     };
     throw new Error(
       `${command} ${argv.join(" ")} failed in ${cwd}:\n${stdout}${stderr}`,
+      { cause: error },
     );
   }
 }

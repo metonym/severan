@@ -360,7 +360,7 @@ export async function scanVariantTables(library: Library): Promise<Scan> {
 
   // Follow the tables through re-exports and imports until nothing new holds one.
   const handled = new Set<string>();
-  for (let changed = true; changed; ) {
+  for (let changed = true; changed;) {
     changed = false;
     for (const [i, file] of files.entries()) {
       const { imports, exports } = lexed[i];

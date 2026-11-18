@@ -271,7 +271,9 @@ export function createComponentOptimizer(
         try {
           const libraryRoot = requirePackageDir(spec.name, root);
           key = `${dir}\0${await packageSignature(libraryRoot, spec.srcDir)}`;
-        } catch {}
+        } catch {
+          // Unresolved: `key` stays undefined, so the library is written.
+        }
         if (
           written?.result !== result ||
           key === undefined ||
