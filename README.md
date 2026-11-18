@@ -113,7 +113,7 @@ classTokens: {
 },
 ```
 
-Only a class those tokens can read is ever removed. Classes the app builds from data at runtime are the one thing it can't see: list them, or a RegExp for their selectors, in `safelist`.
+Once those rules are gone, the custom properties (`--x`) and `@keyframes` the stylesheets define go too when nothing reads them: no `var()` or animation left in the emitted CSS, and no file in `content` or source of the library naming them (a script may read one, or build its name, as in `` `--tone-${t}` ``, which keeps every `--tone-` property). Only a class those tokens can read is ever removed. Classes the app builds from data at runtime are the one thing it can't see: list them, or a RegExp for their selectors, in `safelist`.
 
 ## API reference
 
@@ -237,17 +237,17 @@ The analysis and rewrite the plugins run, for a set of files and without a bundl
 
 It never throws: if the analysis fails, it resolves to `{ warning }` and nothing is rewritten. Otherwise to `SpecializedComponents`:
 
-| Field         | Type                                            |                                                                                                                                                                         |
-| :------------ | :---------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sources`     | `Map<string, { code: string; map: SourceMap }>` | Rewritten components and script modules by the real path of their source, each with a v3 source map. Serve these instead of the files on disk.                          |
-| `edits`       | `number`                                        | Edits made to components, across `sources`.                                                                                                                             |
-| `apps`        | `number`                                        | How many of `sources` are the app's own components.                                                                                                                     |
-| `renderable`  | `ReadonlySet<string>`                           | The library components that can render, by path in `srcDir`.                                                                                                            |
-| `tables`      | `{ modules, pruned, emptied, keys, compounds }` | The tailwind-variants tables rewritten: how many of `sources` are their modules, tables pruned and emptied, and variant keys and compound variants removed.             |
-| `closed`      | `Set<string>`                                   | App components whose props came from their call sites in `files`. Nothing outside `files` may render them; the plugins check it.                                        |
-| `report`      | `() => string[]`                                | The lines `report: true` prints.                                                                                                                                        |
-| `readImport`  | `(importer, id) => boolean`                     | Whether the analysis read file `importer`'s import of library module `id` (both real paths). `false` means an import it can't see, such as one through a bundler alias. |
-| `pruneStyles` | `(css) => { css, rules, selectors }`            | With `styles`: removes from `css` the rules that need a class the library's stylesheets define and nothing can render, and counts the rules and selectors it removed.   |
+| Field         | Type                                               |                                                                                                                                                                                                                                |
+| :------------ | :------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sources`     | `Map<string, { code: string; map: SourceMap }>`    | Rewritten components and script modules by the real path of their source, each with a v3 source map. Serve these instead of the files on disk.                                                                                 |
+| `edits`       | `number`                                           | Edits made to components, across `sources`.                                                                                                                                                                                    |
+| `apps`        | `number`                                           | How many of `sources` are the app's own components.                                                                                                                                                                            |
+| `renderable`  | `ReadonlySet<string>`                              | The library components that can render, by path in `srcDir`.                                                                                                                                                                   |
+| `tables`      | `{ modules, pruned, emptied, keys, compounds }`    | The tailwind-variants tables rewritten: how many of `sources` are their modules, tables pruned and emptied, and variant keys and compound variants removed.                                                                    |
+| `closed`      | `Set<string>`                                      | App components whose props came from their call sites in `files`. Nothing outside `files` may render them; the plugins check it.                                                                                               |
+| `report`      | `() => string[]`                                   | The lines `report: true` prints.                                                                                                                                                                                               |
+| `readImport`  | `(importer, id) => boolean`                        | Whether the analysis read file `importer`'s import of library module `id` (both real paths). `false` means an import it can't see, such as one through a bundler alias.                                                        |
+| `pruneStyles` | `(css) => { css, rules, selectors, declarations }` | With `styles`: removes from `css` the rules that need a class the library's stylesheets define and nothing can render, then the custom properties and `@keyframes` they define that nothing reads, and counts what it removed. |
 
 ```ts
 const result = await specializeFiles({
@@ -337,8 +337,8 @@ The libraries' own stylesheets for the same pages, gzipped, with `styles` in the
 
 | Library                  | Stylesheet                     | Smaller by |
 | :----------------------- | :----------------------------- | :--------- |
-| carbon-components-svelte | `css/white.css`, `classTokens` | 71.3%      |
-| @sveltestrap/sveltestrap | Bootstrap 5                    | 44.2%      |
+| carbon-components-svelte | `css/white.css`, `classTokens` | 71.5%      |
+| @sveltestrap/sveltestrap | Bootstrap 5                    | 46.8%      |
 
 ## Limitations
 

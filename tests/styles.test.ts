@@ -199,6 +199,87 @@ describe("pruneStyles", () => {
   });
 });
 
+// Custom properties and keyframes the library's stylesheets define go
+// when nothing left reads them.
+
+const VAR_LIBRARY = {
+  "Button.svelte": `<script>
+  export let busy = false;
+  const tone = "x";
+  const read = () => getComputedStyle(document.body).getPropertyValue("--lib-script");
+</script>
+<button class="btn {busy ? 'btn-busy' : ''}" style="--lib-set: 1">{read}</button>`,
+  "theme.js": "export const toneVar = (tone) => `--lib-tone-${tone}`;",
+};
+
+const VAR_CSS = `:root {
+  --lib-used: red;
+  --lib-chain: var(--lib-chained);
+  --lib-chained: blue;
+  --lib-unused: green;
+  --lib-script: 1px;
+  --lib-tone-a: 1;
+  --lib-app: 2;
+}
+.btn { color: var(--lib-used); animation: pulse 1s; }
+.btn-busy { color: var(--lib-chain); animation: spin 1s; }
+@keyframes spin { to { transform: rotate(1turn) } }
+@keyframes pulse { to { opacity: 0.5 } }
+@keyframes fade { to { opacity: 0 } }
+@keyframes shown-by-app { to { opacity: 1 } }`;
+
+describe("custom properties and keyframes", () => {
+  const prune = (markup: string, emitted?: string) =>
+    prunedStyles(
+      {
+        lib: VAR_LIBRARY,
+        app: {
+          ...appRendering(markup),
+          "app.css":
+            ".page { width: var(--lib-app); animation: shown-by-app 1s; }",
+        },
+      },
+      VAR_CSS,
+      { emitted },
+    );
+
+  test("go when nothing left reads them", async () => {
+    const css = await prune("<Button />");
+    expect(css).toContain("--lib-used: red");
+    expect(css).toContain("@keyframes pulse");
+    // Only `.btn-busy`, which nothing renders, read these.
+    expect(css).not.toContain("--lib-chain");
+    expect(css).not.toContain("--lib-chained");
+    expect(css).not.toContain("@keyframes spin");
+    expect(css).not.toContain("--lib-unused");
+    expect(css).not.toContain("@keyframes fade");
+  });
+
+  test("stay when a rule that renders reads them", async () => {
+    const css = await prune("<Button busy />");
+    expect(css).toContain("--lib-chain: var(--lib-chained)");
+    expect(css).toContain("--lib-chained: blue");
+    expect(css).toContain("@keyframes spin");
+  });
+
+  test("stay when a script reads or builds them, or the app names them", async () => {
+    const css = await prune("<Button />");
+    expect(css).toContain("--lib-script: 1px");
+    expect(css).toContain("--lib-tone-a: 1");
+    expect(css).toContain("--lib-app: 2");
+    expect(css).toContain("@keyframes shown-by-app");
+  });
+
+  test("never go when the library's stylesheets don't define them", async () => {
+    const css = await prune(
+      "<Button />",
+      `${VAR_CSS}\n:root { --app-only: 1 }\n@keyframes app-only { to { opacity: 0 } }`,
+    );
+    expect(css).toContain("--app-only: 1");
+    expect(css).toContain("@keyframes app-only");
+  });
+});
+
 describe("stylesheetFiles", () => {
   test("finds a package's files, `*` within a segment", () => {
     const files = stylesheetFiles(
