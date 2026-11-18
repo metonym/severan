@@ -26,7 +26,12 @@ per example, a client and an SSR build both
 ways (in `.out/`), then writes `snapshot.json`: the shipped JS and CSS
 (bytes and gzip), what severan rewrote, and the rendered HTML, which must
 be the same both ways. CSS may lose no selector whose classes all appear
-on the rendered page. With severan, a Tailwind example's `src/app.css` is
+on the rendered page. Both client builds then run in Chromium
+([`scripts/browser-check.ts`](../scripts/browser-check.ts)): they must
+throw and log the same errors, and settle into the same DOM after loading
+and after clicking each button. That covers what SSR never runs (actions,
+effects, event handlers). Install Chromium once with
+`bunx playwright install chromium` in `examples/`. With severan, a Tailwind example's `src/app.css` is
 swapped for `src/app.severan.css`, whose `@source` points at
 `node_modules/.severan`: the one line an app changes. Commit the snapshots
 with the change that moved them.
