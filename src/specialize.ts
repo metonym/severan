@@ -14,6 +14,7 @@ import {
 } from "sveast/walk";
 import { type Node, parse } from "./ast";
 import { componentMaps, selectedKeys } from "./component-maps";
+import { isTopLevel } from "./component-model";
 import {
   bindEach,
   evaluate,
@@ -64,6 +65,8 @@ type Edit = Span & {
 };
 
 type Statement = AST.Script["content"]["body"][number];
+
+type CallNode = Extract<Node, { type: "CallExpression" }>;
 
 const FOLDABLE = new Set([
   "Identifier",
@@ -228,6 +231,45 @@ function isPure(node: Node, scope?: Scope): boolean {
   }
 }
 
+/** Instance-script `const d = createEventDispatcher()` names, imported from `svelte`. */
+function eventDispatchers(ast: AST.Root): Set<string> {
+  const names = new Set<string>();
+  const body = ast.instance?.content.body ?? [];
+  const creators = new Set<string>();
+  for (const statement of body) {
+    if (
+      statement.type === "ImportDeclaration" &&
+      statement.source.value === "svelte"
+    ) {
+      for (const specifier of statement.specifiers) {
+        if (
+          specifier.type === "ImportSpecifier" &&
+          specifier.imported.type === "Identifier" &&
+          specifier.imported.name === "createEventDispatcher"
+        ) {
+          creators.add(specifier.local.name);
+        }
+      }
+    }
+  }
+  if (creators.size === 0) return names;
+  for (const statement of body) {
+    if (statement.type !== "VariableDeclaration" || statement.kind !== "const")
+      continue;
+    for (const { id, init } of statement.declarations) {
+      if (
+        id.type === "Identifier" &&
+        init?.type === "CallExpression" &&
+        init.callee.type === "Identifier" &&
+        creators.has(init.callee.name)
+      ) {
+        names.add(id.name);
+      }
+    }
+  }
+  return names;
+}
+
 function isComponentNode(node: Node | null): boolean {
   return (
     node?.type === "Component" ||
@@ -344,6 +386,57 @@ export function specializeComponent(
     );
   }
 
+  const dispatchers = eventDispatchers(scope.model.ast);
+
+  /**
+   * `dispatch(type, …)` from `createEventDispatcher()` with no listener for
+   * any `type` it can take: it only evaluates its arguments. Only where its
+   * result goes unused: it returns `true` in the browser, but nothing on the
+   * server.
+   */
+  function unheardDispatch(node: Node): CallNode | undefined {
+    if (
+      dispatchers.size === 0 ||
+      node.type !== "CallExpression" ||
+      node.optional ||
+      node.callee.type !== "Identifier" ||
+      !dispatchers.has(node.callee.name) ||
+      node.arguments.length === 0 ||
+      node.arguments.some((argument) => argument.type === "SpreadElement")
+    ) {
+      return undefined;
+    }
+    const binding = scope.model.scopes.bindingOf(node.callee);
+    if (!binding || !isTopLevel(binding, scope.model)) return undefined;
+    const type = valueAt(node.arguments[0]);
+    if (
+      type === UNKNOWN ||
+      type.size === 0 ||
+      [...type].some((p) => typeof p !== "string" || listens(scope.usage, p))
+    ) {
+      return undefined;
+    }
+    return node;
+  }
+
+  /** Replaces an unheard dispatch statement with its arguments' effects. */
+  function dropDispatch(statement: Node, call: CallNode): void {
+    const args = call.arguments;
+    if (args.every((argument) => isPure(argument, scope))) {
+      replace(statement, ";");
+      return;
+    }
+    const first = args[0];
+    const last = args[args.length - 1];
+    edits.push({
+      start: call.start,
+      end: call.end,
+      print: (rewrite) =>
+        concat("void (", rewrite(span(first).start, span(last).end), ")"),
+    });
+    for (const argument of args) visit(argument, call, "arguments");
+  }
+
   function truthIfPure(test: Node): Truth {
     return isPure(test, scope) ? truthOf(valueAt(test)) : "either";
   }
@@ -369,9 +462,28 @@ export function specializeComponent(
 
       // Folding the expression of `e;` could turn it into a directive
       // prologue (`"use strict";`); only fold inside it.
-      case "ExpressionStatement":
-        visitChildren(node.expression);
+      case "ExpressionStatement": {
+        const call = unheardDispatch(node.expression);
+        if (call) dropDispatch(node, call);
+        else visitChildren(node.expression);
         return;
+      }
+
+      // `$: dispatch("change", value)` with no listener: no effect at all.
+      case "LabeledStatement": {
+        const { body } = node;
+        const call =
+          node.label.name === "$" &&
+          parent?.type === "Program" &&
+          body.type === "ExpressionStatement"
+            ? unheardDispatch(body.expression)
+            : undefined;
+        if (call && call.arguments.every((a) => isPure(a, scope))) {
+          replace(node, "");
+          return;
+        }
+        break;
+      }
 
       case "LogicalExpression": {
         if (tryFold(node, parent, field)) return;

@@ -23,6 +23,9 @@
   `export let`: Svelte compiles it as the component's own state instead of
   a prop. Carbon's gzipped client JS is 29.5% smaller (28.0%), and
   sveltestrap's 22.0% (21.6%).
+- `dispatch(type, …)` from `createEventDispatcher()` is removed where no
+  call site listens to `type` and its result is unused, keeping whatever
+  its arguments run. Carbon's gzipped client JS is 29.7% smaller (29.5%).
 
 ## 0.5.0
 
