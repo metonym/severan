@@ -987,11 +987,46 @@ type Candidate = {
  * declared where the component reads `$$restProps` or `$$props`, or it would
  * land in them.
  */
-function removablePropsOf(scope: Scope): (name: string) => boolean {
+function removablePropsOf(scope: Scope): PropRules {
   const { model, usage } = scope;
-  if (usage.open || model.customElement) return () => false;
-  if (!REST_PROPS.test(model.code)) return () => true;
-  return (name) => !usage.props.has(model.propNames.get(name) ?? name);
+  if (usage.open || model.customElement) return NO_PROP_RULES;
+  const passed = (name: string) =>
+    usage.props.has(model.propNames.get(name) ?? name);
+  const local = (name: string) => !passed(name);
+  if (!REST_PROPS.test(model.code)) return { removable: () => true, local };
+  return { removable: local, local };
+}
+
+/**
+ * `removable`: an unread prop may go. `local`: no call site passes or binds
+ * the prop, so it's state the component holds, and `export let` can be `let`.
+ */
+type PropRules = {
+  removable: (name: string) => boolean;
+  local: (name: string) => boolean;
+};
+
+const NO_PROP_RULES: PropRules = {
+  removable: () => false,
+  local: () => false,
+};
+
+/** `export let a = 1, b;` whose every name `local` accepts: the `export ` to drop. */
+function localPropExport(
+  statement: Statement,
+  local: (name: string) => boolean,
+): Splice | undefined {
+  if (
+    statement.type !== "ExportNamedDeclaration" ||
+    statement.declaration?.type !== "VariableDeclaration" ||
+    statement.declaration.kind !== "let" ||
+    !statement.declaration.declarations.every(
+      ({ id }) => id.type === "Identifier" && local(id.name),
+    )
+  ) {
+    return undefined;
+  }
+  return { start: statement.start, end: statement.declaration.start };
 }
 
 const REST_PROPS = /\$\$(?:restProps|props)\b/;
@@ -1092,21 +1127,22 @@ function subtractReads(
 
 /**
  * With `drop`, removes unread top-level declarations with pure initializers
- * (Svelte compiles `$:` into effects a minifier must keep), and the unread
- * props `removableProps` accepts; with `silence`, marks the unread props left.
+ * (Svelte compiles `$:` into effects a minifier must keep) and the unread
+ * props `props` accepts, and declares the props no call site passes as
+ * plain `let`s; with `silence`, marks the unread props left.
  */
 function cleanUp(
   input: MappedText,
   drop: boolean,
   silence: boolean,
   parsed?: AST.Root,
-  removableProps: (name: string) => boolean = () => false,
+  props: PropRules = NO_PROP_RULES,
 ): { mapped: MappedText; dropped: number } {
   if (!drop && !silence) return { mapped: input, dropped: 0 };
   const ast = parsed ?? parse(input.text, { comments: false, css: false });
   const statements = ast.instance?.content.body ?? [];
   const candidates = drop
-    ? removableDeclarations(statements, removableProps)
+    ? removableDeclarations(statements, props.removable)
     : [];
   // A declaration's own reads (`$: x = x + 1`) count.
   const owned = new Set(candidates.flatMap((candidate) => candidate.own));
@@ -1137,6 +1173,16 @@ function cleanUp(
     end: statement.end,
   }));
   const gone = new Set(removed.map(({ statement }) => statement.start));
+  if (drop) {
+    for (const statement of statements) {
+      if (gone.has(statement.start)) continue;
+      const exported = localPropExport(statement, props.local);
+      if (exported) {
+        edits.push(exported);
+        gone.add(statement.start);
+      }
+    }
+  }
   for (const start of propReads ? unusedPropMarks(statements, propReads) : []) {
     if (!gone.has(start)) {
       edits.push({ start, end: start, text: IGNORE_UNUSED_PROP });

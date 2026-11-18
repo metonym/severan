@@ -101,7 +101,7 @@ describe("specializeComponent", () => {
     );
   });
 
-  test("keeps props declared and never folds what's written", () => {
+  test("never folds what's written", () => {
     const code = specialize(
       `<script>
   export let open = false;
@@ -109,6 +109,7 @@ describe("specializeComponent", () => {
   function toggle() { open = !open; }
 </script>
 <div bind:this={ref} class:open={open} on:click={toggle} />`,
+      { open: false },
     );
     expect(code).toContain("export let open = false;");
     expect(code).toContain("class:open={open}");
@@ -348,11 +349,30 @@ describe("props nothing reads anymore", () => {
   $: open = ref !== null;
 </script>
 <input bind:this={ref} on:input={clear} />`,
+      { id: "x", value: "", open: false, ref: undefined },
     );
     expect(code).toContain("export let id = uniqueId();");
     expect(code).toContain(`export let value = "";`);
     expect(code).toContain("export let open = false;");
     expect(code).toContain("export let ref = null;");
+  });
+
+  test("no site passes become the component's own state", () => {
+    const code = specialize(
+      `<script>
+  import { uniqueId } from "./id.js";
+  export let id = uniqueId();
+  export let value = "", open = false;
+  export let label = "";
+  function clear() { value = ""; open = !open; }
+</script>
+<input {id} {value} {open} on:input={clear} />{label}`,
+      { label: "Name" },
+    );
+    expect(code).toContain("\n  let id = uniqueId();");
+    expect(code).toContain(`\n  let value = "", open = false;`);
+    expect(code).not.toContain("export let id");
+    expect(code).not.toContain("label");
   });
 
   test("stay when something outside the call sites may render it", () => {
