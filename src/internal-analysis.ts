@@ -20,3 +20,8 @@ export { parse } from "./ast";
 export { loadComponentModel } from "./component-model";
 export { libraryAt } from "./library";
 export { specializeComponent } from "./specialize";
+export {
+  libraryStylePruner,
+  type SafelistEntry,
+  type StylePruner,
+} from "./styles";

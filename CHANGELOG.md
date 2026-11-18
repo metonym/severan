@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+**Features**
+
+- `safelist` keeps whole selectors: a class (with or without its `.`)
+  keeps every selector it's in, and it takes RegExps, tested against
+  each selector (`/^\.x--tag--/`), as carbon-preprocess-svelte's does.
+  Before, a safelisted class only kept itself, so a selector with
+  another class that nothing renders still went.
+- `severan/internal/analysis` exports `libraryStylePruner`, for a pruner
+  from an analysis made without `specializeFiles` (carbon-preprocess-svelte's
+  per-module `createUsageCollector`).
+
 ## 0.7.2
 
 **Fixes**

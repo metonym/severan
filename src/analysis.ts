@@ -22,7 +22,11 @@ import {
   type SpecializeOptions,
   specializeComponent,
 } from "./specialize";
-import { libraryStylePruner, type StylePruner } from "./styles";
+import {
+  libraryStylePruner,
+  type SafelistEntry,
+  type StylePruner,
+} from "./styles";
 import type { CallSite } from "./usage";
 import { errorMessage, isSvelteFile, realpath, stripQuery } from "./util";
 import { formatValue, UNKNOWN } from "./values";
@@ -363,7 +367,7 @@ export async function specializeFiles(input: {
   resolvedImports?: ReadonlyMap<string, string>;
   failure: Failure;
   /** Classes `pruneStyles` keeps whatever renders: ones the app builds from data. */
-  safelist?: readonly string[];
+  safelist?: readonly SafelistEntry[];
 }): Promise<SpecializedComponents | { warning: string }> {
   let appUsage: AppUsage;
   let library: Library;

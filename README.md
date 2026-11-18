@@ -113,7 +113,7 @@ classTokens: {
 },
 ```
 
-Only a class those tokens can read is ever removed. Classes the app builds from data at runtime are the one thing it can't see: list them in `safelist`.
+Only a class those tokens can read is ever removed. Classes the app builds from data at runtime are the one thing it can't see: list them, or a RegExp for their selectors, in `safelist`.
 
 ## API reference
 
@@ -190,7 +190,7 @@ Describes the library to rewrite. Every field but `classTokens`, `styles` and `t
 | `unwrap`   | `true` on Svelte 5                                                     | Replace an `{#if}` whose only live branch is known with that branch, instead of `{#if true}`. Svelte 3 and 4 render whitespace differently without the block.                                                                                                                                                                                                        |
 | `silent`   | `false`                                                                | Skip the per-build summary (`rewrote N My Library components for this app (M edits)`).                                                                                                                                                                                                                                                                               |
 | `report`   | `false`                                                                | Print what each build rewrote: edits per component, the children it no longer renders, the components no longer bundled, and the values each call site passes (or why it keeps every value). Independent of `silent`.                                                                                                                                                |
-| `safelist` | `[]`                                                                   | Classes of the library's stylesheets to keep whatever renders: ones the app builds from data at runtime. Only with `styles`.                                                                                                                                                                                                                                         |
+| `safelist` | `[]`                                                                   | Selectors of the library's stylesheets to keep whatever renders, for classes the app builds from data at runtime: a class (`"x--tag--red"`, with or without its `.`) keeps every selector it's in, a RegExp every selector it matches (`/^\.x--tag--/`). Only with `styles`.                                                                                         |
 
 ### `names`
 
@@ -216,7 +216,7 @@ function specializeFiles(input: {
   failure: Failure;
   options?: SpecializeOptions;
   resolvedImports?: ReadonlyMap<string, string>;
-  safelist?: readonly string[];
+  safelist?: ReadonlyArray<string | RegExp>;
 }): Promise<SpecializedComponents | { warning: string }>;
 ```
 

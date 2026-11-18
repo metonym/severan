@@ -109,6 +109,8 @@ export function wrappedList(text: string): string | undefined {
 /** A pruner that drops what needs a class `removable` accepts. */
 export function createStylePruner(
   removable: (cls: string) => boolean,
+  /** Selectors kept whole whatever their classes (see `safelist`). */
+  keep: (selector: string) => boolean = () => false,
 ): StylePruner {
   const verdicts = new Map<string, boolean>();
   const gone = (cls: string) => {
@@ -122,6 +124,7 @@ export function createStylePruner(
   // An element matches a compound only with every class it requires, and
   // an `:is()` list wrapping a whole selector matches if any branch can.
   const canMatch = (selector: ParsedSelector): boolean => {
+    if (keep(selector.text)) return true;
     const list = wrappedList(selector.text);
     if (list !== undefined) return parseSelectorList(list).some(canMatch);
     return selector.compounds.every(({ classes }) => !classes.some(gone));
@@ -147,16 +150,58 @@ export function createStylePruner(
 }
 
 /**
+ * A `safelist` entry: a class (`"x--grid"` or `".x--grid"`), which keeps
+ * every selector it appears in, or a RegExp tested against each selector.
+ */
+export type SafelistEntry = string | RegExp;
+
+/** Continues a class token: `.x--grid` isn't in `.x--grid-narrow`. */
+const CLASS_CHAR = /[\w-]/;
+
+/** Whether `selector` names class `cls` (escaped as CSS writes it) whole. */
+function namesClass(selector: string, cls: string): boolean {
+  const name = `.${cls.replace(/[^\w-]/g, "\\$&")}`;
+  for (
+    let at = selector.indexOf(name);
+    at !== -1;
+    at = selector.indexOf(name, at + 1)
+  ) {
+    const next = selector[at + name.length];
+    if (next === undefined || !CLASS_CHAR.test(next)) return true;
+  }
+  return false;
+}
+
+/** Whether `selector` matches an entry of `safelist`. */
+export function isSafelisted(
+  selector: string,
+  safelist: readonly SafelistEntry[],
+): boolean {
+  return safelist.some((entry) => {
+    if (typeof entry === "string") {
+      return namesClass(
+        selector,
+        entry.startsWith(".") ? entry.slice(1) : entry,
+      );
+    }
+    // A `g` or `y` RegExp carries `lastIndex` from its last test.
+    entry.lastIndex = 0;
+    return entry.test(selector);
+  });
+}
+
+/**
  * The pruner for `spec`'s stylesheets: a class goes when they define it,
- * `isPruned` says nothing renders it, and neither `content` nor `keep` nor
- * `safelist` names it.
+ * `isPruned` says nothing renders it, and neither `content` nor `keep`
+ * names it. A selector `safelist` matches stays whole.
  */
 export function libraryStylePruner(input: {
   spec: LibrarySpec;
   projectRoot: string;
   isPruned: (cls: string) => boolean;
+  /** Files whose class names stay: the app's, as `content` reads them. */
   files: Iterable<{ code: string }>;
-  safelist?: readonly string[];
+  safelist?: readonly SafelistEntry[];
 }): StylePruner | undefined {
   const { spec, projectRoot, isPruned } = input;
   const tokens = classTokensOf(spec);
@@ -167,10 +212,7 @@ export function libraryStylePruner(input: {
   }
   // What the app's files name stays: a class it writes itself, or passes
   // to a component.
-  const named = new Set<string>([
-    ...(spec.styles.keep ?? []),
-    ...(input.safelist ?? []),
-  ]);
+  const named = new Set<string>(spec.styles.keep ?? []);
   for (const { code } of input.files) {
     if (!code.includes(tokens.marker)) continue;
     for (const token of tokens.text(code)) {
@@ -181,11 +223,15 @@ export function libraryStylePruner(input: {
   // read (one outside `classTokens`' namespace) is never known not to render.
   const readable = (cls: string) =>
     cls.includes(tokens.marker) && tokens.text(cls).includes(`.${cls}`);
+  const safelist = input.safelist ?? [];
   return createStylePruner(
     (cls) =>
       defined.has(cls) &&
       !named.has(cls) &&
       readable(cls) &&
       isPruned(`.${cls}`),
+    safelist.length > 0
+      ? (selector) => isSafelisted(selector, safelist)
+      : undefined,
   );
 }
