@@ -1,10 +1,22 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { severan } from "../dist/vite.js";
 
 const EXAMPLES = import.meta.dirname;
+
+/**
+ * An example's `LibrarySpec`: `library.js`'s default export, for one with
+ * functions (`classTokens`), else `library.json`.
+ */
+export async function loadLibrary(dir) {
+  const module = path.join(dir, "library.js");
+  if (existsSync(module))
+    return (await import(pathToFileURL(module).href)).default;
+  return JSON.parse(readFileSync(path.join(dir, "library.json"), "utf8"));
+}
 
 /**
  * Svelte hashes a component's filename into its scoped class, and Vite
@@ -24,10 +36,8 @@ function cssHash({ filename, css, hash }) {
  * `src/app.severan.css`, which scans `node_modules/.severan` instead of the
  * library: the one line an app changes. `OUT` is the output directory.
  */
-export function exampleConfig(dir, { plugins = [] } = {}) {
-  const library = JSON.parse(
-    readFileSync(path.join(dir, "library.json"), "utf8"),
-  );
+export async function exampleConfig(dir, { plugins = [] } = {}) {
+  const library = await loadLibrary(dir);
   const optimized = process.env.SEVERAN === "1";
   const severanCss = path.join(dir, "src/app.severan.css");
   const tailwind = existsSync(severanCss);

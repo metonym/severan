@@ -33,6 +33,8 @@ If your app only ever writes `<Button kind="ghost">`, Svelte compiles this inste
 
 Libraries that keep their classes in [tailwind-variants](https://www.tailwind-variants.org/) tables (`tv({ variants: { color: { red: "…", green: "…" } } })`), with `tailwind: true` in their [`LibrarySpec`](#libraryspec), get those tables rewritten too: keys no live call can select are removed, and a table nothing calls keeps no classes. With Tailwind, scanning what severan writes for it leaves those classes out of your CSS as well (see [Tailwind](#tailwind)).
 
+Name the library's stylesheets in `styles` and the CSS each build emits loses their rules nothing can match, too: a rule goes when it needs a class those stylesheets define that no live component renders and the app never names (see [Stylesheets](#stylesheets)).
+
 It runs on production builds, in Vite, Rollup, Rolldown, webpack and Rspack, for Svelte 3, 4 and 5 (runes included). Rewritten components come with source maps back to their original source.
 
 ```sh
@@ -86,6 +88,33 @@ Tailwind generates a utility for every class string it scans, and a library's se
 
 or a Tailwind v3 `content` glob: `"./node_modules/.severan/my-library/**/*.{svelte,js}"`. The dev server and development builds write the library as it is, so their CSS has every class.
 
+### Stylesheets
+
+A library that ships its own CSS (Carbon's `css/white.css`, Bootstrap for sveltestrap) can name it in `styles`:
+
+```ts
+const library = {
+  // …
+  styles: { stylesheets: ["my-library/css/*.css"] },
+};
+```
+
+Every production build then removes, from the CSS it emits, the rules that need a class those stylesheets define and that nothing can render. A class stays when a live component can render it under the app's props (a template with a part it can't evaluate keeps every class it could build: `btn-{size}` keeps each `btn-` class), when one of the library's script modules names it, when a file in `content` names it, or when `styles.keep` or the `safelist` option names it. Classes the stylesheets don't define (the app's own, Svelte's scoping classes, other packages') never remove a rule. A selector inside `:not()` or `:has()` doesn't need its classes; an `:is()` list stays if any branch can match.
+
+`classTokens` says how to read the library's class names. Without it, every run of word characters and hyphens is a class, which keeps more than a namespaced library needs: a `startsWith("x--")` in its code would keep every `x--` class. A library whose classes share a prefix should pass its own:
+
+```ts
+classTokens: {
+  marker: "x--",
+  text: (text) => [...text.matchAll(/(?<![\w-])x--[\w-]+/g)].map(([t]) => `.${t}`),
+  script(code, into) {
+    for (const [t] of code.matchAll(/x--[\w-]+/g)) into.add(`.${t}`);
+  },
+},
+```
+
+Only a class those tokens can read is ever removed. Classes the app builds from data at runtime are the one thing it can't see: list them in `safelist`.
+
 ## API reference
 
 severan has no CLI: it runs inside your bundler (`severan/vite`, `severan/webpack`), or from your own script with `specializeFiles` (`severan`). Each entry ships its own types:
@@ -138,7 +167,7 @@ A webpack 5 and Rspack plugin. It rewrites nothing unless `mode` is `"production
 
 ### `LibrarySpec`
 
-Describes the library to rewrite. Every field but `classTokens` and `tailwind` is required.
+Describes the library to rewrite. Every field but `classTokens`, `styles` and `tailwind` is required.
 
 | Field               | Type                       |                                                                                                                                                                                                                                                                                                                                                                                          |
 | :------------------ | :------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -149,17 +178,19 @@ Describes the library to rewrite. Every field but `classTokens` and `tailwind` i
 | `contextKeyPrefix`  | `string`                   | What its context keys start with (`"my-library:"`): an app module that holds such a string may set or read its contexts.                                                                                                                                                                                                                                                                 |
 | `label`             | `string`                   | Names the library in messages: `"My Library"`.                                                                                                                                                                                                                                                                                                                                           |
 | `tool`              | `string`                   | Starts every warning and error: `"severan"`.                                                                                                                                                                                                                                                                                                                                             |
-| `classTokens`       | `{ marker, text, script }` | Optional. How to read the library's CSS class names, for analyses that prune its styles. The plugins and `specializeFiles` don't use it.                                                                                                                                                                                                                                                 |
+| `classTokens`       | `{ marker, text, script }` | Optional. How to read the library's class names: `text` returns the classes (`.x--a`) in a string that contains `marker`, `script` adds those a whole script module names. Without it, a library with `styles` reads every run of word characters and hyphens. See [Stylesheets](#stylesheets).                                                                                          |
+| `styles`            | `{ stylesheets, keep? }`   | Optional. `stylesheets`: the library's CSS, as `"<package>/<path>"` with `*` matching within a path segment. `keep`: classes always kept. With it, production builds prune those stylesheets' rules from the CSS they emit (see [Stylesheets](#stylesheets)).                                                                                                                            |
 | `tailwind`          | `boolean`                  | Optional, `false` by default. `true` for a library whose classes are Tailwind's: its tailwind-variants tables are rewritten, and with Tailwind installed, builds write what of it can render for [Tailwind](#tailwind) to scan, the dev server's and non-production webpack builds included. Without it, the analysis never loads that code, and the plugins skip those builds entirely. |
 
 ### `SeveranOptions`
 
-| Option    | Default                                                                |                                                                                                                                                                                                                                                                                                                                                                      |
-| :-------- | :--------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `content` | `["src/**/*.{svelte,svx,md,mdx,astro,js,jsx,ts,tsx,mjs,mts,cjs,cts}"]` | Every file that renders the library's components, relative to the project root. They're analyzed before the build; a module outside them that imports one fails the build. `.svelte` files are read for the props they pass; a component imported from a script, Markdown, MDX or Astro file keeps every value. `node_modules` is skipped unless a pattern names it. |
-| `unwrap`  | `true` on Svelte 5                                                     | Replace an `{#if}` whose only live branch is known with that branch, instead of `{#if true}`. Svelte 3 and 4 render whitespace differently without the block.                                                                                                                                                                                                        |
-| `silent`  | `false`                                                                | Skip the per-build summary (`rewrote N My Library components for this app (M edits)`).                                                                                                                                                                                                                                                                               |
-| `report`  | `false`                                                                | Print what each build rewrote: edits per component, the children it no longer renders, the components no longer bundled, and the values each call site passes (or why it keeps every value). Independent of `silent`.                                                                                                                                                |
+| Option     | Default                                                                |                                                                                                                                                                                                                                                                                                                                                                      |
+| :--------- | :--------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `content`  | `["src/**/*.{svelte,svx,md,mdx,astro,js,jsx,ts,tsx,mjs,mts,cjs,cts}"]` | Every file that renders the library's components, relative to the project root. They're analyzed before the build; a module outside them that imports one fails the build. `.svelte` files are read for the props they pass; a component imported from a script, Markdown, MDX or Astro file keeps every value. `node_modules` is skipped unless a pattern names it. |
+| `unwrap`   | `true` on Svelte 5                                                     | Replace an `{#if}` whose only live branch is known with that branch, instead of `{#if true}`. Svelte 3 and 4 render whitespace differently without the block.                                                                                                                                                                                                        |
+| `silent`   | `false`                                                                | Skip the per-build summary (`rewrote N My Library components for this app (M edits)`).                                                                                                                                                                                                                                                                               |
+| `report`   | `false`                                                                | Print what each build rewrote: edits per component, the children it no longer renders, the components no longer bundled, and the values each call site passes (or why it keeps every value). Independent of `silent`.                                                                                                                                                |
+| `safelist` | `[]`                                                                   | Classes of the library's stylesheets to keep whatever renders: ones the app builds from data at runtime. Only with `styles`.                                                                                                                                                                                                                                         |
 
 ### `names`
 
@@ -185,6 +216,7 @@ function specializeFiles(input: {
   failure: Failure;
   options?: SpecializeOptions;
   resolvedImports?: ReadonlyMap<string, string>;
+  safelist?: readonly string[];
 }): Promise<SpecializedComponents | { warning: string }>;
 ```
 
@@ -201,19 +233,21 @@ The analysis and rewrite the plugins run, for a set of files and without a bundl
 | `options.emptyBlock` | Default`{#if false}<!---->{/if}`. What replaces an `{#if}` that renders nothing between whitespace.                                                            |
 | `options.editFilter` | `(index, { start, end }) => boolean`. Debugging: apply only the top-level edits it accepts.                                                                    |
 | `resolvedImports`    | Non-relative `.svelte` imports you resolved yourself (`$lib/Card.svelte`), keyed `` `${importer}\0${specifier}` ``, to the absolute path of a file in `files`. |
+| `safelist`           | As in `SeveranOptions`.                                                                                                                                        |
 
 It never throws: if the analysis fails, it resolves to `{ warning }` and nothing is rewritten. Otherwise to `SpecializedComponents`:
 
-| Field        | Type                                            |                                                                                                                                                                         |
-| :----------- | :---------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sources`    | `Map<string, { code: string; map: SourceMap }>` | Rewritten components and script modules by the real path of their source, each with a v3 source map. Serve these instead of the files on disk.                          |
-| `edits`      | `number`                                        | Edits made to components, across `sources`.                                                                                                                             |
-| `apps`       | `number`                                        | How many of `sources` are the app's own components.                                                                                                                     |
-| `renderable` | `ReadonlySet<string>`                           | The library components that can render, by path in `srcDir`.                                                                                                            |
-| `tables`     | `{ modules, pruned, emptied, keys, compounds }` | The tailwind-variants tables rewritten: how many of `sources` are their modules, tables pruned and emptied, and variant keys and compound variants removed.             |
-| `closed`     | `Set<string>`                                   | App components whose props came from their call sites in `files`. Nothing outside `files` may render them; the plugins check it.                                        |
-| `report`     | `() => string[]`                                | The lines `report: true` prints.                                                                                                                                        |
-| `readImport` | `(importer, id) => boolean`                     | Whether the analysis read file `importer`'s import of library module `id` (both real paths). `false` means an import it can't see, such as one through a bundler alias. |
+| Field         | Type                                            |                                                                                                                                                                         |
+| :------------ | :---------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sources`     | `Map<string, { code: string; map: SourceMap }>` | Rewritten components and script modules by the real path of their source, each with a v3 source map. Serve these instead of the files on disk.                          |
+| `edits`       | `number`                                        | Edits made to components, across `sources`.                                                                                                                             |
+| `apps`        | `number`                                        | How many of `sources` are the app's own components.                                                                                                                     |
+| `renderable`  | `ReadonlySet<string>`                           | The library components that can render, by path in `srcDir`.                                                                                                            |
+| `tables`      | `{ modules, pruned, emptied, keys, compounds }` | The tailwind-variants tables rewritten: how many of `sources` are their modules, tables pruned and emptied, and variant keys and compound variants removed.             |
+| `closed`      | `Set<string>`                                   | App components whose props came from their call sites in `files`. Nothing outside `files` may render them; the plugins check it.                                        |
+| `report`      | `() => string[]`                                | The lines `report: true` prints.                                                                                                                                        |
+| `readImport`  | `(importer, id) => boolean`                     | Whether the analysis read file `importer`'s import of library module `id` (both real paths). `false` means an import it can't see, such as one through a bundler alias. |
+| `pruneStyles` | `(css) => { css, rules, selectors }`            | With `styles`: removes from `css` the rules that need a class the library's stylesheets define and nothing can render, and counts the rules and selectors it removed.   |
 
 ```ts
 const result = await specializeFiles({
@@ -259,6 +293,8 @@ Every message starts with `` `${tool}:` ``.
 - An export of the library it can't tell apart from a component (a function that may return one) keeps every component.
 - A tailwind-variants table keeps every key when something other than a live component's call can read it: the app imports it, another table extends it, a script module reads it, a namespace or `import()` reaches it, or a component hands on what a call with slots returns. A variant whose value at some call the analysis can't evaluate (a spread, a function's parameter) keeps every key. A table nothing calls is emptied only when nothing else can read it, and a script module that mounts a component keeps every table whole.
 
+- A stylesheet rule stays unless it needs a class the library's stylesheets define, its `classTokens` can read, and nothing can render: no live component under the app's props, no script module of the library, no file in `content`, nothing in `keep` or `safelist`. The examples check that no selector whose classes all appear on the rendered page goes missing.
+
 The app's own components are rewritten too, when every file that renders them is in `content`: a wrapper's props come from its call sites, so `<Card tone="danger">` reaches the `Button` inside it.
 
 ## Results
@@ -297,9 +333,17 @@ Tailwind's CSS for the same pages (v4, with each library's plugin), gzipped, sca
 | flowbite-svelte | 60.9%      |
 | svelte-ux       | 24.9%      |
 
+The libraries' own stylesheets for the same pages, gzipped, with `styles` in their spec ([Stylesheets](#stylesheets)):
+
+| Library                  | Stylesheet                     | Smaller by |
+| :----------------------- | :----------------------------- | :--------- |
+| carbon-components-svelte | `css/white.css`, `classTokens` | 71.3%      |
+| @sveltestrap/sveltestrap | Bootstrap 5                    | 44.2%      |
+
 ## Limitations
 
 - **Production builds only.** The analysis runs for the whole app before the build, so dev serving and HMR are left alone.
 - **tailwind-variants tables only in the library's `.js` modules**, made with `tv` imported from `tailwind-variants`. Tables defined in components, or with `createTV`, keep every class.
 - **Every importer must be in `content`.** A module outside it that imports the library fails the build rather than ship components rewritten without its call sites.
+- **Stylesheets can't see classes built from data.** A class the app or a package outside the library adds at runtime, from a value no file names, must be in `safelist`.
 - **Values it can't evaluate stay open.** Props read from a whole `$props()` object, or state held in classes (`.svelte.js`), keep every value.

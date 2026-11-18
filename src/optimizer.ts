@@ -42,6 +42,12 @@ export type SeveranOptions = {
    * @default false
    */
   report?: boolean;
+
+  /**
+   * Classes of the library's stylesheets (`styles` in the `LibrarySpec`) to
+   * keep whatever renders: ones the app builds from data at runtime.
+   */
+  safelist?: string[];
 };
 
 const DEFAULT_CONTENT = [
@@ -178,6 +184,7 @@ function newBuild(root: string) {
     scriptImporters: new Map<string, Set<string>>(),
     readImport: (() => true) as SpecializedComponents["readImport"],
     realpaths: new Map<string, string | undefined>(),
+    pruneStyles: undefined as SpecializedComponents["pruneStyles"],
   };
 }
 
@@ -259,6 +266,7 @@ export function createComponentOptimizer(
               unwrap:
                 options?.unwrap ?? (installedMajor("svelte", root) ?? 0) >= 5,
             },
+            safelist: options?.safelist,
           }),
         };
       }
@@ -293,6 +301,7 @@ export function createComponentOptimizer(
         }
       }
       if ("warning" in result) return { warning: result.warning };
+      build.pruneStyles = result.pruneStyles;
       build.sources = result.sources;
       build.readImport = result.readImport;
       build.closed = new Set([...result.closed].map(real));
@@ -306,6 +315,28 @@ export function createComponentOptimizer(
 
     get analyzed(): ReadonlySet<string> {
       return build.analyzed;
+    },
+
+    /**
+     * Prunes the CSS assets `assets` holds (name to source) in place, and
+     * says what it removed; `undefined` when there's nothing to prune with.
+     */
+    pruneStyles(assets: Map<string, string>): string | undefined {
+      const prune = build.pruneStyles;
+      if (!prune) return undefined;
+      let rules = 0;
+      let before = 0;
+      let after = 0;
+      for (const [name, css] of assets) {
+        const pruned = prune(css);
+        rules += pruned.rules;
+        before += css.length;
+        after += pruned.css.length;
+        assets.set(name, pruned.css);
+      }
+      if (rules === 0 || options?.silent) return undefined;
+      const kB = (bytes: number) => `${(bytes / 1000).toFixed(2)} kB`;
+      return `removed ${rules} unused ${label} CSS rules (${kB(before)} -> ${kB(after)})`;
     },
 
     /** Whether `id` may be served rewritten, now or after `content` changes. */

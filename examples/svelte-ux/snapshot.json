@@ -30,7 +30,8 @@
       "bytes": 83265,
       "gzip": 10724
     },
-    "gzipSmallerBy": "24.9%"
+    "gzipSmallerBy": "24.9%",
+    "renderedSelectorsLost": 0
   },
   "html": {
     "identical": true,

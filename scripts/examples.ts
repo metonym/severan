@@ -22,6 +22,9 @@ import {
 import path from "node:path";
 import { parseArgs, promisify } from "node:util";
 import { gzipSync } from "node:zlib";
+import { filterCss } from "caligula";
+import { requiredClasses, splitSelectorList } from "caligula/selector";
+import { wrappedList } from "../src/styles";
 
 const { values: args } = parseArgs({
   options: {
@@ -118,16 +121,62 @@ async function build(dir: string, variant: Variant) {
     dir,
   );
   const client = path.join(out, "client");
-  return { js: shipped(client, ".js"), css: shipped(client, ".css"), html };
+  return {
+    js: shipped(client, ".js"),
+    css: shipped(client, ".css"),
+    cssText: readdirSync(client, { recursive: true, encoding: "utf8" })
+      .filter((file) => file.endsWith(".css"))
+      .map((file) => readFileSync(path.join(client, file), "utf8"))
+      .join("\n"),
+    html,
+  };
+}
+
+/** Each selector of `css`'s rules, lists split. */
+function selectorsOf(css: string): string[] {
+  const found: string[] = [];
+  filterCss(css, {
+    discardEmpty: false,
+    rule: ({ parsed }) => {
+      for (const { text } of parsed) found.push(text);
+    },
+  });
+  return found;
+}
+
+const CLASS_ATTRIBUTE = /\sclass="([^"]*)"/g;
+const WHITESPACE = /\s+/;
+
+/**
+ * Selectors of `original` that severan's CSS lost though every class they
+ * require is on some element of `html`: each must be zero, since a class
+ * that renders is never pruned.
+ */
+function lostSelectors(original: string, pruned: string, html: string) {
+  const rendered = new Set(
+    Array.from(html.matchAll(CLASS_ATTRIBUTE), ([, list]) =>
+      list.split(WHITESPACE),
+    ).flat(),
+  );
+  const kept = new Set(selectorsOf(pruned));
+  // Some branch of a wrapping `:is()` list requires only rendered classes.
+  const renders = (selector: string): boolean => {
+    const list = wrappedList(selector);
+    if (list !== undefined) return splitSelectorList(list).some(renders);
+    const classes = requiredClasses(selector);
+    return classes.length > 0 && classes.every((cls) => rendered.has(cls));
+  };
+  return selectorsOf(original).filter(
+    (selector) => !kept.has(selector) && renders(selector),
+  );
 }
 
 const percent = (before: number, after: number) =>
   `${(((before - after) / before) * 100).toFixed(1)}%`;
 
 async function snapshot(dir: string) {
-  const library = JSON.parse(
-    readFileSync(path.join(dir, "library.json"), "utf8"),
-  );
+  const { loadLibrary } = await import(path.join(EXAMPLES, "vite.shared.js"));
+  const library = await loadLibrary(dir);
   const { version } = JSON.parse(
     readFileSync(
       path.join(EXAMPLES, "node_modules", library.name, "package.json"),
@@ -161,6 +210,12 @@ async function snapshot(dir: string) {
     severan: severan[key],
     gzipSmallerBy: percent(original[key].gzip, severan[key].gzip),
   });
+  const lost = lostSelectors(original.cssText, severan.cssText, severan.html);
+  if (lost.length > 0) {
+    console.error(
+      `${path.basename(dir)}: severan's CSS lost selectors the page renders: ${lost.slice(0, 5).join(" | ")}`,
+    );
+  }
   const identical = original.html === severan.html;
   let at = 0;
   while (at < original.html.length && original.html[at] === severan.html[at]) {
@@ -179,7 +234,7 @@ async function snapshot(dir: string) {
       },
     },
     js: sizes("js"),
-    css: sizes("css"),
+    css: { ...sizes("css"), renderedSelectorsLost: lost.length },
     html: {
       identical,
       bytes: original.html.length,
@@ -218,7 +273,8 @@ function differences(before: unknown, after: unknown, at = ""): string[] {
 
 const names = readdirSync(EXAMPLES).filter(
   (name) =>
-    existsSync(path.join(EXAMPLES, name, "library.json")) &&
+    (existsSync(path.join(EXAMPLES, name, "library.json")) ||
+      existsSync(path.join(EXAMPLES, name, "library.js"))) &&
     (!args.only || args.only.split(",").includes(name)),
 );
 // The examples build in parallel, each in its own directory.
@@ -238,6 +294,7 @@ for (const [i, name] of names.entries()) {
   rows.push(
     `${name.padEnd(18)} JS ${current.js.gzipSmallerBy.padStart(6)}  CSS ${current.css.gzipSmallerBy.padStart(6)}  HTML ${current.html.identical ? "identical" : "DIFFERENT"}`,
   );
+  if (current.css.renderedSelectorsLost > 0) failed = true;
   if (!current.html.identical) {
     failed = true;
     console.error(

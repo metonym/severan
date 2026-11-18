@@ -5,5 +5,8 @@
   "componentPackages": [],
   "contextKeyPrefix": "sveltestrap:",
   "label": "Sveltestrap",
-  "tool": "severan"
+  "tool": "severan",
+  "styles": {
+    "stylesheets": ["bootstrap/dist/css/bootstrap.min.css"]
+  }
 }

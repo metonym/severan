@@ -20,10 +20,13 @@ bun run examples --update    # writes them
 bun run examples --only flowbite-svelte
 ```
 
-Each run builds `dist/` and, per example, a client and an SSR build both
+Each example's `LibrarySpec` is its `library.json`, or `library.js` for
+one with functions (Carbon's `classTokens`). Each run builds `dist/` and,
+per example, a client and an SSR build both
 ways (in `.out/`), then writes `snapshot.json`: the shipped JS and CSS
 (bytes and gzip), what severan rewrote, and the rendered HTML, which must
-be the same both ways. With severan, a Tailwind example's `src/app.css` is
+be the same both ways. CSS may lose no selector whose classes all appear
+on the rendered page. With severan, a Tailwind example's `src/app.css` is
 swapped for `src/app.severan.css`, whose `@source` points at
 `node_modules/.severan`: the one line an app changes. Commit the snapshots
 with the change that moved them.
