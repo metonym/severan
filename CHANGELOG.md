@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**
+
+- A function, or a prop, that only an action, transition or animation
+  names (`use:tip`, `transition:fade`, `animate:flip`) is kept. 0.6.0 and
+  0.7.0 removed it as unread, so the browser threw `tip is not defined`
+  (Carbon's `SelectItem` and `MultiSelect`). SSR never runs these, which
+  is why rendered HTML stayed identical.
+
 ## 0.7.0
 
 **Features**

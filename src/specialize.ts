@@ -997,15 +997,22 @@ function countReads(
           count(propReads, node.name);
         }
       }
-      // Directive names may have no Identifier of their own.
+      // Directive names may have no Identifier of their own. An action,
+      // transition or animation names the function it runs (`use:tip`,
+      // `use:actions.tip`), which only the browser calls: SSR never shows
+      // one missing.
       if (
         node.type === "ClassDirective" ||
         node.type === "BindDirective" ||
         node.type === "LetDirective" ||
-        node.type === "StyleDirective"
+        node.type === "StyleDirective" ||
+        node.type === "UseDirective" ||
+        node.type === "TransitionDirective" ||
+        node.type === "AnimateDirective"
       ) {
-        bump(reads, node.name);
-        if (propReads) bump(propReads, node.name);
+        const name = node.name.split(".")[0];
+        bump(reads, name);
+        if (propReads) bump(propReads, name);
       }
     },
   });
