@@ -411,6 +411,65 @@ describe("writes a rewrite keeps", () => {
   });
 });
 
+// A prop nothing reads anymore is removed, unless removing it shows: a
+// site passes it and it would land in `$$restProps`, or its default runs.
+
+const UNREAD_LIBRARY = {
+  "Rest.svelte": `<script>
+  export let warn = false;
+  export let mode = "a";
+</script>
+{#if mode === "b"}<p>{warn}</p>{/if}<div {...$$restProps}></div>`,
+  "Props.svelte": `<script>
+  export let warn = false;
+  export let mode = "a";
+</script>
+{#if mode === "b"}<p>{warn}</p>{/if}<div data-keys={Object.keys($$props).sort().join()}></div>`,
+  "Counter.svelte": `<script context="module">
+  let count = 0;
+</script>
+<script>
+  export let id = \`x\${count++}\`;
+  export let mode = "a";
+</script>
+{#if mode === "b"}{id}{/if}<span>{count}</span>`,
+};
+
+const unread = (markup: string): LibraryApp => ({
+  lib: UNREAD_LIBRARY,
+  app: appRendering(markup),
+});
+
+const UNREAD: Record<string, LibraryApp> = {
+  "passed, with $$restProps": unread("<Rest warn /><Rest warn={false} />"),
+  "passed at one site, with $$restProps": unread("<Rest /><Rest warn />"),
+  "not passed, with $$restProps": unread('<Rest data-x="1" />'),
+  "passed, with $$props": unread("<Props warn /><Props />"),
+  "with a default that has effects": unread("<Counter /><Counter />"),
+};
+
+describe("props nothing reads anymore", () => {
+  const cases = Object.keys(UNREAD).flatMap((name): [string, boolean][] => [
+    [name, false],
+    [name, true],
+  ]);
+  test.each(cases)("%s (unwrap: %p)", async (name, unwrap) => {
+    const { before, after } = await renderSpecialized(UNREAD[name], { unwrap });
+    expect(after).toBe(before);
+  });
+
+  test("are removed when no site passes them", async () => {
+    const sources = await specializedLibrary(unread('<Rest data-x="1" />'));
+    expect(sources["Rest.svelte"]).not.toContain("export let");
+  });
+
+  test("stay when a site passes them and the component reads its rest", async () => {
+    const sources = await specializedLibrary(unread("<Rest /><Rest warn />"));
+    expect(sources["Rest.svelte"]).toContain("export let warn");
+    expect(sources["Rest.svelte"]).not.toContain("export let mode");
+  });
+});
+
 test("`await` in markup is rewritten around", async () => {
   // Rendering it needs `experimental.async`; only the rewrite is checked.
   const sources = await specializedLibrary({

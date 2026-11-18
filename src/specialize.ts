@@ -725,6 +725,7 @@ export function specializeComponent(
     options?.dropUnused !== false,
     applied > 0,
     parsed,
+    removablePropsOf(scope),
   );
   let unrendered: string[] | undefined;
   return {
@@ -854,8 +855,9 @@ const IGNORE_UNUSED_PROP =
   "// svelte-ignore unused-export-let export_let_unused\n  ";
 
 /**
- * Props nothing reads anymore get `svelte-ignore`. They stay declared: an
- * undeclared prop would land in `$$restProps`.
+ * Props nothing reads anymore that stay declared get `svelte-ignore`: one a
+ * call site passes would land in `$$restProps`, and one outside the call
+ * sites may be passed or read (see `removablePropsOf`).
  */
 function unusedPropMarks(
   statements: readonly Statement[],
@@ -913,7 +915,44 @@ type Candidate = {
   own: readonly Node[];
 };
 
-function removableDeclarations(statements: readonly Statement[]): Candidate[] {
+/**
+ * Which unread props may go, by local name. Nothing outside the call sites
+ * may pass or read them (open usage keeps all), and one a site passes stays
+ * declared where the component reads `$$restProps` or `$$props`, or it would
+ * land in them.
+ */
+function removablePropsOf(scope: Scope): (name: string) => boolean {
+  const { model, usage } = scope;
+  if (usage.open || model.customElement) return () => false;
+  if (!REST_PROPS.test(model.code)) return () => true;
+  return (name) => !usage.props.has(model.propNames.get(name) ?? name);
+}
+
+const REST_PROPS = /\$\$(?:restProps|props)\b/;
+
+/** `export let name = init`, alone in its statement, with a pure `init`. */
+function removableProp(
+  statement: Statement,
+  removable: (name: string) => boolean,
+): Candidate | undefined {
+  if (
+    statement.type !== "ExportNamedDeclaration" ||
+    statement.declaration?.type !== "VariableDeclaration" ||
+    statement.declaration.kind !== "let" ||
+    statement.declaration.declarations.length !== 1
+  ) {
+    return undefined;
+  }
+  const [{ id, init }] = statement.declaration.declarations;
+  if (id.type !== "Identifier" || !removable(id.name)) return undefined;
+  if (init && !isPure(init)) return undefined;
+  return { name: id.name, statement, own: [id] };
+}
+
+function removableDeclarations(
+  statements: readonly Statement[],
+  removableProps: (name: string) => boolean,
+): Candidate[] {
   // Assigning a prop can update a parent's `bind:`, and assigning
   // `$store` sets the store: never "unused".
   const props = new Set<string>();
@@ -935,7 +974,10 @@ function removableDeclarations(statements: readonly Statement[]): Candidate[] {
 
   const candidates: Candidate[] = [];
   for (const statement of statements) {
-    if (
+    const prop = removableProp(statement, removableProps);
+    if (prop) {
+      candidates.push(prop);
+    } else if (
       statement.type === "LabeledStatement" &&
       statement.label.name === "$" &&
       statement.body.type === "ExpressionStatement"
@@ -984,19 +1026,22 @@ function subtractReads(
 
 /**
  * With `drop`, removes unread top-level declarations with pure initializers
- * (Svelte compiles `$:` into effects a minifier must keep); with `silence`,
- * marks unread props.
+ * (Svelte compiles `$:` into effects a minifier must keep), and the unread
+ * props `removableProps` accepts; with `silence`, marks the unread props left.
  */
 function cleanUp(
   input: MappedText,
   drop: boolean,
   silence: boolean,
   parsed?: AST.Root,
+  removableProps: (name: string) => boolean = () => false,
 ): { mapped: MappedText; dropped: number } {
   if (!drop && !silence) return { mapped: input, dropped: 0 };
   const ast = parsed ?? parse(input.text, { comments: false, css: false });
   const statements = ast.instance?.content.body ?? [];
-  const candidates = drop ? removableDeclarations(statements) : [];
+  const candidates = drop
+    ? removableDeclarations(statements, removableProps)
+    : [];
   // A declaration's own reads (`$: x = x + 1`) count.
   const owned = new Set(candidates.flatMap((candidate) => candidate.own));
   const propReads = silence ? new Map<string, number>() : undefined;
@@ -1025,8 +1070,11 @@ function cleanUp(
     start: statement.start,
     end: statement.end,
   }));
+  const gone = new Set(removed.map(({ statement }) => statement.start));
   for (const start of propReads ? unusedPropMarks(statements, propReads) : []) {
-    edits.push({ start, end: start, text: IGNORE_UNUSED_PROP });
+    if (!gone.has(start)) {
+      edits.push({ start, end: start, text: IGNORE_UNUSED_PROP });
+    }
   }
   edits.sort((a, b) => a.start - b.start);
   return { mapped: splice(input, edits), dropped: removed.length };

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**Features**
+
+- Props nothing reads after the rewrite are removed, not only marked with
+  `svelte-ignore`, so Svelte no longer compiles a prop for each one. One
+  stays when its default has effects, something writes it, or a call site
+  passes it to a component that reads `$$restProps` or `$$props`. Gzipped
+  client JS of the Carbon example is 27.9% smaller (24.4% before), and
+  sveltestrap's 20.8% (17.6%).
+
 ## 0.5.0
 
 **Features**
