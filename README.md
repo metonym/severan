@@ -253,6 +253,7 @@ Every message starts with `` `${tool}:` ``.
 - A component whose props something other than a call site can set keeps every value: a custom element, or one bound with `bind:this` whose instance the app uses for more than calling what it exports (`$set`, an accessor, `$on`, handing it on).
 - A prop nothing reads anymore stays declared where removing it would show: its default has effects (`uniqueId()`), something writes it, or a call site passes it to a component that reads `$$restProps` or `$$props`, where it would land.
 - A bare `on:click` stays wherever a call site may listen to it: one with `on:click`, one whose own forwarded `on:click` has a listener, or one the analysis can't read.
+- `$$restProps` is spread away only when no call site passes a key it would hold, and only onto components and into objects: on an element, a spread decides how Svelte renders its attributes.
 - Content counts: snippets are props, and content outside them is `children` on Svelte 5 and a slot on Svelte 3 and 4.
 - An export of the library it can't tell apart from a component (a function that may return one) keeps every component.
 - A tailwind-variants table keeps every key when something other than a live component's call can read it: the app imports it, another table extends it, a script module reads it, a namespace or `import()` reaches it, or a component hands on what a call with slots returns. A variant whose value at some call the analysis can't evaluate (a spread, a function's parameter) keeps every key. A table nothing calls is emptied only when nothing else can read it, and a script module that mounts a component keeps every table whole.
@@ -278,11 +279,11 @@ How much it saves depends on how a library is written. Gzipped client JS of a re
 | Library                       | Style                      | Smaller by |
 | :---------------------------- | :------------------------- | :--------- |
 | flowbite-svelte               | Tailwind variants          | 37.2%      |
-| carbon-components-svelte      | branches on props          | 27.9%      |
+| carbon-components-svelte      | branches on props          | 28.0%      |
 | @sveltestrap/sveltestrap      | branches on props          | 21.6%      |
-| svelte-5-ui-lib               | Tailwind variants          | 18.7%      |
+| svelte-5-ui-lib               | Tailwind variants          | 18.8%      |
 | svelte-ux                     | Tailwind                   | 5.3%       |
-| bits-ui                       | headless, state in classes | 2.1%       |
+| bits-ui                       | headless, state in classes | 2.2%       |
 | @skeletonlabs/skeleton-svelte | headless, state machines   | 0%         |
 
 Libraries whose markup branches on their props gain the most, and so do those whose tailwind-variants tables hold every variant's classes. Headless libraries that keep their state in classes or hand their props to a state machine leave little to fold.

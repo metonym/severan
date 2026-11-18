@@ -2,7 +2,7 @@
   "library": "svelte-5-ui-lib@0.12.6",
   "rewritten": {
     "components": 22,
-    "edits": 163,
+    "edits": 164,
     "tables": {
       "pruned": 15,
       "emptied": 97,
@@ -16,10 +16,10 @@
       "gzip": 52770
     },
     "severan": {
-      "bytes": 138322,
-      "gzip": 42890
+      "bytes": 138145,
+      "gzip": 42837
     },
-    "gzipSmallerBy": "18.7%"
+    "gzipSmallerBy": "18.8%"
   },
   "css": {
     "original": {

@@ -14,7 +14,13 @@ import {
 } from "sveast/walk";
 import { type Node, parse } from "./ast";
 import { componentMaps, selectedKeys } from "./component-maps";
-import { bindEach, evaluate, isPropsObject, type Scope } from "./evaluate";
+import {
+  bindEach,
+  evaluate,
+  isPropsObject,
+  type Scope,
+  spreadProps,
+} from "./evaluate";
 import {
   concat,
   type MappedText,
@@ -327,6 +333,17 @@ export function specializeComponent(
     return true;
   }
 
+  /** `$$restProps`, or the rest of `$props()`, with no key at any site. */
+  function isEmptyRest(node: Node): boolean {
+    return (
+      node.type === "Identifier" &&
+      (node.name === "$$restProps" ||
+        node.name === scope.model.restPropsName) &&
+      isPropsObject(node, scope) &&
+      spreadProps(node, scope)?.size === 0
+    );
+  }
+
   function truthIfPure(test: Node): Truth {
     return isPure(test, scope) ? truthOf(valueAt(test)) : "either";
   }
@@ -419,6 +436,34 @@ export function specializeComponent(
       case "IfBlock":
         visitIfChain(node, parent);
         return;
+
+      // A rest object no site passes a key to is empty: spreading it adds
+      // nothing. Not on an element: a spread there decides how Svelte
+      // renders its attributes (in what order, and an empty `class`).
+      case "SpreadAttribute":
+        if (isComponentNode(parent) && isEmptyRest(node.expression)) {
+          replace(node, "");
+          return;
+        }
+        break;
+
+      case "SpreadElement": {
+        if (
+          parent?.type !== "ObjectExpression" ||
+          !isEmptyRest(node.argument)
+        ) {
+          break;
+        }
+        // The comma goes with it.
+        const { properties } = parent;
+        const i = properties.indexOf(node);
+        const next = properties[i + 1];
+        const previous = properties[i - 1];
+        const start = next ? node.start : (previous?.end ?? node.start);
+        const end = next ? next.start : node.end;
+        edits.push({ start, end, print: () => "" });
+        return;
+      }
 
       // A bare `on:click` hands the event to the component's listeners:
       // with none, it does nothing. A modifier on an element still runs.
