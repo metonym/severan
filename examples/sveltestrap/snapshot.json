@@ -16,10 +16,10 @@
       "gzip": 29823
     },
     "severan": {
-      "bytes": 74410,
-      "gzip": 24589
+      "bytes": 70694,
+      "gzip": 23618
     },
-    "gzipSmallerBy": "17.6%"
+    "gzipSmallerBy": "20.8%"
   },
   "css": {
     "original": {

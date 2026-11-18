@@ -71,7 +71,8 @@ describe("specializeComponent", () => {
 {#if skeleton}<Skeleton />{:else}<button class={cls}>{kind}</button>{/if}`,
       { kind: "tertiary" },
     );
-    expect(code).toContain(`export let kind = "primary";`);
+    // Nothing reads `kind` anymore.
+    expect(code).not.toContain("export let kind");
     // The live branch keeps a block around it, so whitespace renders the
     // same in Svelte 3/4.
     expect(code).toContain(
@@ -299,22 +300,89 @@ describe("specializeComponent", () => {
   });
 });
 
-test("marks props nothing reads anymore so Svelte doesn't warn", () => {
-  const code = specialize(
-    `<script>
+describe("props nothing reads anymore", () => {
+  const ignore = "// svelte-ignore unused-export-let export_let_unused";
+
+  test("are removed", () => {
+    const code = specialize(
+      `<script>
   export let warn = false;
   export let warnText = "";
+  export let format = (text) => text.trim();
+  export let label = warnText;
   let className = undefined;
   export { className as class };
 </script>
-<div class={className}>{#if warn}<p>{warnText}</p>{/if}</div>`,
-  );
-  const ignore = "// svelte-ignore unused-export-let export_let_unused";
-  expect(code).toContain(`${ignore}\n  export let warn = false;`);
-  expect(code).toContain(`${ignore}\n  export let warnText = "";`);
-  // Svelte 5 reports a renamed export at the `let`, Svelte 3/4 at `export`.
-  expect(code).toContain(`${ignore}\n  let className = undefined;`);
-  expect(code).toContain(`${ignore}\n  export { className as class };`);
+<div class={className}>{#if warn}<p>{format(label)}</p>{/if}</div>`,
+    );
+    expect(code).not.toContain("export let");
+    // A renamed export stays; Svelte 5 reports it at the `let`, Svelte 3/4
+    // at `export`.
+    expect(code).toContain(`${ignore}\n  let className = undefined;`);
+    expect(code).toContain(`${ignore}\n  export { className as class };`);
+  });
+
+  test("stay, marked, when a site passes them and the component reads its rest", () => {
+    const code = specialize(
+      `<script>
+  export let warn = false;
+  export let warnText = "";
+</script>
+{#if warn}<p>{warnText}</p>{/if}<div {...$$restProps} />`,
+      { warn: false },
+    );
+    // `warn` would land in `$$restProps`; `warnText`, never passed, wouldn't.
+    expect(code).toContain(`${ignore}\n  export let warn = false;`);
+    expect(code).not.toContain("warnText");
+  });
+
+  test("stay when a default has effects, or something writes them", () => {
+    const code = specialize(
+      `<script>
+  import { uniqueId } from "./id.js";
+  export let id = uniqueId();
+  export let value = "";
+  export let open = false;
+  export let ref = null;
+  function clear() { value = ""; }
+  $: open = ref !== null;
+</script>
+<input bind:this={ref} on:input={clear} />`,
+    );
+    expect(code).toContain("export let id = uniqueId();");
+    expect(code).toContain(`export let value = "";`);
+    expect(code).toContain("export let open = false;");
+    expect(code).toContain("export let ref = null;");
+  });
+
+  test("stay when something outside the call sites may render it", () => {
+    const model = buildComponentModel(
+      `<script>
+  export let warn = false;
+  export let mode = "a";
+</script>
+{#if mode === "b"}{warn}{/if}`,
+      "X/X.svelte",
+    );
+    const { code } = specializeComponent(
+      createScope(model, newComponentUsage(true), () => possible(undefined)),
+    );
+    expect(code).toContain("export let warn = false;");
+  });
+
+  test("stay with `dropUnused: false`", () => {
+    const code = specialize(
+      `<script>
+  export let warn = false;
+  export let mode = "a";
+</script>
+{#if mode === "b"}{warn}{/if}`,
+      {},
+      [],
+      { dropUnused: false },
+    );
+    expect(code).toContain(`${ignore}\n  export let warn = false;`);
+  });
 });
 
 test("a renamed export is a prop: `class` sets `className`", () => {
