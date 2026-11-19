@@ -871,6 +871,39 @@ ${extra}
       };
       expect(await lgPruned(files, MD)).toBe(false);
     });
+
+    test.each([
+      ["another context", `getContext("carbon:Other")`, true],
+      ["a context by a key it can't read", "getContext(key)", false],
+    ])("a Carbon script module that reads %s", async (_, read, pruned) => {
+      const files = {
+        "read.js": `import { getContext } from "svelte";\nexport const read = (key) => ${read};\n`,
+      };
+      expect(await lgPruned(files, MD)).toBe(pruned);
+    });
+
+    test.each([
+      ["another property", "other", true],
+      ["the store", "store", false],
+    ])(
+      "a rendered reader of `getContext(k)?.p` that reads %s",
+      async (_, property, pruned) => {
+        const files = {
+          "Other/Other.svelte": `<script>
+  import { getContext } from "svelte";
+  const value = getContext("carbon:Mock")?.${property};
+  const all = { value };
+</script>
+<slot />`,
+        };
+        expect(
+          await lgPruned(
+            files,
+            `<Provider size="md"><Consumer /><Other /></Provider>`,
+          ),
+        ).toBe(pruned);
+      },
+    );
   });
 
   describe("calls to Carbon's script modules", () => {
