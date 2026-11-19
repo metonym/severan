@@ -1,44 +1,184 @@
 # svelte-prune
 
-> Zero-dependency Svelte component specializer. Rewrites each component a library ships for the props your app passes it, so branches that can never render are cut from the build.
+**Ship only the Svelte library code your app renders.**
 
-A component library's `Button` handles every `kind`, `size` and state any app might ask for, and your bundle carries all of it. svelte-prune reads every call site in your app before the build, works out which values each prop can take, and hands Svelte a copy of each component rewritten for those values: props that never change become literals, `{#if}` branches that can't run are removed, and child components only those branches render are no longer bundled. Props nothing reads anymore are removed, props no call site passes become the component's own variables, and the events a component passes on (`on:click`) or dispatches (`dispatch("change")`) are removed where no call site listens to them.
+A component library's `Button` handles every `kind`, `size` and state any app might ask for, and your bundle carries all of it. svelte-prune reads how your app uses the library before the build, then hands Svelte a copy of each component rewritten for the props it actually receives: branches that can't run, the components only they render, and the CSS only they use are cut from the build.
 
-```svelte
-<!-- the library's Button.svelte -->
-<script>
-  import Icon from "./Icon.svelte";
-  export let kind = "primary";
-  export let size = "default";
-</script>
-{#if kind === "ghost"}
-  <button class="ghost {size}"><slot /></button>
-{:else if kind === "danger"}
-  <button class="danger {size}"><Icon name="warning" /><slot /></button>
-{:else}
-  <button class="primary {size}"><slot /></button>
-{/if}
-```
+Zero dependencies. Production builds in Vite, Rollup, Rolldown, webpack and Rspack, for Svelte 3, 4 and 5 (runes included), with source maps back to the original components.
 
-If your app only ever writes `<Button kind="ghost">`, Svelte compiles this instead, and the bundler drops `Icon`, which nothing renders anymore. On Svelte 5 the `{#if true}` goes too (`unwrap`):
+## Results
 
-```svelte
-<script>
-  import Icon from "./Icon.svelte";
-</script>
-{#if true}
-  <button class="ghost {"default"}"><slot /></button>
-{/if}
-```
+A realistic page per library, built with Vite with and without svelte-prune ([`examples/`](examples/README.md)), gzipped:
 
-Libraries that keep their classes in [tailwind-variants](https://www.tailwind-variants.org/) tables (`tv({ variants: { color: { red: "…", green: "…" } } })`), with `tailwind: true` in their [`LibrarySpec`](#libraryspec), get those tables rewritten too: keys no live call can select are removed, and a table nothing calls keeps no classes. With Tailwind, scanning what svelte-prune writes for it leaves those classes out of your CSS as well (see [Tailwind](#tailwind)).
+| Library                       | Style                      | JS smaller by | CSS smaller by |
+| :---------------------------- | :------------------------- | :------------ | :------------- |
+| flowbite-svelte               | Tailwind variants          | 37.8%         | 60.9%          |
+| carbon-components-svelte      | branches on props          | 34.1%         | 70.8%          |
+| svelte-5-ui-lib               | Tailwind variants          | 22.9%         | 71.7%          |
+| @sveltestrap/sveltestrap      | branches on props          | 22.0%         | 46.8%          |
+| svelte-ux                     | Tailwind                   | 7.4%          | 35.5%          |
+| bits-ui                       | headless, state in classes | 2.2%          | (no CSS)       |
+| @skeletonlabs/skeleton-svelte | headless, state machines   | 0%            | 0%             |
 
-Name the library's stylesheets in `styles` and the CSS each build emits loses their rules nothing can match, too: a rule goes when it needs a class those stylesheets define that no live component renders and the app never names (see [Stylesheets](#stylesheets)).
+CSS is Tailwind's output for the Tailwind libraries ([Tailwind](#tailwind)) and the library's own stylesheet for Carbon and sveltestrap ([Stylesheets](#stylesheets)). Libraries whose markup branches on their props gain the most, and so do those whose tailwind-variants tables hold every variant's classes. Headless libraries that keep their state in classes or hand their props to a state machine leave little to fold.
 
-It runs on production builds, in Vite, Rollup, Rolldown, webpack and Rspack, for Svelte 3, 4 and 5 (runes included). Rewritten components come with source maps back to their original source.
+Every page renders and behaves identically in the browser, and 7,669 generated apps across these libraries render identically before and after ([Correctness](#correctness)).
+
+## Install
 
 ```sh
 bun i -d svelte-prune
+```
+
+## What it removes
+
+Each diff is the library component as svelte-prune rewrites it for the app in its first comment (Svelte 5 output; on Svelte 3 and 4 a live branch keeps its `{#if true}` wrapper).
+
+**Branches that can't render, and the components only they render.** `Icon` is no longer bundled:
+
+```diff
+ <!-- <Button kind="ghost">Save</Button> <Button kind="ghost" size="sm">Cancel</Button> -->
+ <script>
+   import Icon from "./Icon.svelte";
+-  export let kind = "primary";
+   export let size = "md";
+ </script>
+
+-{#if kind === "danger"}
+-  <button class="btn danger {size}"><Icon name="warning" /><slot /></button>
+-{:else if kind === "ghost"}
+-  <button class="btn ghost {size}"><slot /></button>
+-{:else}
+-  <button class="btn primary {size}"><slot /></button>
+-{/if}
++<button class="btn ghost {size}"><slot /></button>
+```
+
+**Props that never change become literals.**
+
+```diff
+ <!-- <Button size="sm">Save</Button> <Button size="sm">Cancel</Button> -->
+ <script>
+-  export let size = "md";
+-  export let disabled = false;
+ </script>
+
+-<button class="btn btn-{size}" {disabled}><slot /></button>
++<button class="btn btn-{"sm"}" disabled={false}><slot /></button>
+```
+
+**Defaults no call site overrides**, and the markup that only renders for other values:
+
+```diff
+ <!-- <Field label="Name" /> -->
+ <script>
+-  export let label = "";
+-  export let helperText = "";
+-  export let invalid = false;
+-  export let id = "field";
+ </script>
+
+-<label for={id}>{label}</label>
+-<input {id} aria-invalid={invalid} />
+-{#if helperText}<p class="helper">{helperText}</p>{/if}
++<label for={"field"}>{"Name"}</label>
++<input id={"field"} aria-invalid={false} />
++{#if false}<!---->{/if}
+```
+
+**Events nobody listens to.** A forwarded `on:focus` and a `dispatch("change")` go; `on:click` has a listener and stays. `checked`, which no call site passes, becomes the component's own variable:
+
+```diff
+ <!-- <Toggle on:click={log}>Dark mode</Toggle> -->
+ <script>
+   import { createEventDispatcher } from "svelte";
+-  export let checked = false;
++  let checked = false;
+   const dispatch = createEventDispatcher();
+   function toggle() {
+     checked = !checked;
+-    dispatch("change", checked);
+   }
+ </script>
+
+-<button on:click on:focus on:click={toggle} aria-pressed={checked}><slot /></button>
++<button on:click on:click={toggle} aria-pressed={checked}><slot /></button>
+```
+
+**`$$restProps` spreads that carry nothing**, onto components:
+
+```diff
+ <!-- <Link href="/docs" icon="arrow">Docs</Link> -->
+-<a {href}><slot />{#if icon}<Icon name={icon} {...$$restProps} />{/if}</a>
++<a href={"/docs"}><slot /><Icon name={"arrow"} /></a>
+```
+
+**Runes and snippets.** A snippet prop no call site passes is `undefined`:
+
+```diff
+ <!-- <Card title="Usage">Body</Card> -->
+ <script>
+   let { title, variant = "outlined", header, children } = $props();
+ </script>
+
+-<div class="card {variant}">
+-  {#if header}
+-    {@render header()}
+-  {:else if title}
+-    <h2>{title}</h2>
+-  {/if}
++<div class="card {"outlined"}">
++  <h2>{"Usage"}</h2>
+   {@render children?.()}
+ </div>
+```
+
+**Through your own components.** A wrapper's props come from its call sites, so `<Confirm tone="danger">` reaches the `Button` inside it:
+
+```diff
+ <!-- src/Confirm.svelte, rendered only as <Confirm tone="danger">Delete</Confirm> -->
+-<Button kind={tone}><slot /></Button>
++<Button kind={"danger"}><slot /></Button>
+```
+
+```diff
+ <!-- the library's Button.svelte -->
+-{#if kind === "danger"}
+-  <button class="danger"><slot /></button>
+-{:else}
+-  <button class="primary"><slot /></button>
+-{/if}
++<button class="danger"><slot /></button>
+```
+
+**tailwind-variants keys no live call selects**, with `tailwind: true` in the [`LibrarySpec`](#libraryspec). Tailwind, scanning what svelte-prune writes, leaves those classes out of your CSS too ([Tailwind](#tailwind)):
+
+```diff
+ // <Badge color="green">Active</Badge> <Badge color="red">Failed</Badge>
+ export const badge = tv({
+   base: "rounded px-2",
+   variants: {
+     color: {
+-      gray: "bg-gray-100 text-gray-800",
+       red: "bg-red-100 text-red-800",
+       green: "bg-green-100 text-green-800",
+     },
+-    size: { sm: "text-xs", md: "text-sm", lg: "text-base" },
++    size: { md: "text-sm" },
+   },
+   defaultVariants: { color: "gray", size: "md" },
+ });
+```
+
+**Library stylesheet rules nothing renders**, with `styles` in the `LibrarySpec` ([Stylesheets](#stylesheets)):
+
+```diff
+ /* <Button>Save</Button>, whose class is btn-{kind} */
+ .btn { padding: 4px; }
+ .btn-primary { background: blue; }
+-.btn-danger { background: red; }
+-.btn-ghost { background: none; }
+-.btn-danger:hover { background: darkred; }
 ```
 
 ## Usage
@@ -280,57 +420,41 @@ Every message starts with `` `${tool}:` ``.
 
 ## What it reads
 
-Each example below is rewritten for the call site in its first
-comment; the values come from what that call site passes.
+Each diff is rewritten for the call site in its first comment; the values come from what that call site passes.
 
-**Names declared in markup.** A `{@const}`, an `{#each}` item, and
-destructuring in either are read where they're in scope, and so is a
-snippet's parameter, as what every `{@render}` of it passes:
+**Names declared in markup.** A `{@const}`, an `{#each}` item, and destructuring in either are read where they're in scope, and so is a snippet's parameter, as what every `{@render}` of it passes:
 
-```svelte
-<!-- <List size="md" {items} /> -->
-{#snippet row(s, label)}
-  {#if s === "sm"}<small>{label}</small>{:else}<b>{label}</b>{/if}
-{/snippet}
-{#each items as { label, tags: [first] = [] }}
-  {@const compact = size === "sm"}
-  {#if compact}<small>{first}</small>{/if}{@render row(size, label)}
-{/each}
+```diff
+ <!-- <List size="md" {items} /> -->
+ {#snippet row(s, label)}
+-  {#if s === "sm"}<small>{label}</small>{:else}<b>{label}</b>{/if}
++  <b>{label}</b>
+ {/snippet}
+ {#each items as { label, tags: [first] = [] }}
+-  {@const compact = size === "sm"}
+-  {#if compact}<small>{first}</small>{/if}{@render row(size, label)}
++  {@const compact = false}
++  {@render row("md", label)}
+ {/each}
 ```
 
-```svelte
-{#snippet row(s, label)}
-  <b>{label}</b>
-{/snippet}
-{#each items as { label, tags: [first] = [] }}
-  {@const compact = false}
-  {@render row("md", label)}
-{/each}
+A snippet handed to a component, or used as a component's content, keeps its parameters unknown: the component may call it with anything.
+
+**Pure built-ins.** `Array.isArray`, `Math`'s rounding and min/max functions, and `includes`, `some` and `every` on arrays (`some` and `every` with a callback written inline that only reads) are evaluated, and a `&&`, `||` or `??` whose left side decides it folds without its right side:
+
+```diff
+ <!-- <Header title="Hi" placement="left" /> -->
+-{#if Array.isArray(title)}{#each title as t}<p>{t}</p>{/each}{:else}<p>{title}</p>{/if}
+-{#if ["top", "bottom"].includes(placement)}<div class="vertical">…</div>{/if}
+-{#if Array.isArray(data) && data.length > 0}<datalist>…</datalist>{/if}
++<p>{"Hi"}</p>
++{#if false}<!---->{/if}
++{#if false}<!---->{/if}
 ```
 
-A snippet handed to a component, or used as a component's content,
-keeps its parameters unknown: the component may call it with anything.
+`Array` or `Math` declared in the component isn't the built-in, and an object's own `includes` may do anything.
 
-**Pure built-ins.** `Array.isArray`, `Math`'s rounding and min/max
-functions, and `includes`, `some` and `every` on arrays (`some` and
-`every` with a callback written inline that only reads) are evaluated,
-and a `&&`, `||` or `??` whose left side decides it folds without its
-right side:
-
-```svelte
-<!-- <Header title="Hi" placement="left" /> -->
-{#if Array.isArray(title)}{#each title as t}<p>{t}</p>{/each}{:else}<p>{title}</p>{/if}
-{#if ["top", "bottom"].includes(placement)}<div class="vertical">…</div>{/if}
-{#if Array.isArray(data) && data.length > 0}<datalist>…</datalist>{/if}
-```
-
-All that's left is `<p>{"Hi"}</p>`. `Array` or `Math` declared in the
-component isn't the built-in, and an object's own `includes` may do
-anything.
-
-**Stores handed down in a context.** A `writable` a component sets only
-from its props, in `$:`, and hands down only in `setContext`, holds
-what those props can be in every component that reads it:
+**Stores handed down in a context.** A `writable` a component sets only from its props, in `$:`, and hands down only in `setContext`, holds what those props can be in every component that reads it:
 
 ```svelte
 <!-- Tabs.svelte -->
@@ -340,23 +464,20 @@ what those props can be in every component that reads it:
   $: iconOnlyStore.set(iconOnly);
   setContext("tabs", { iconOnly: iconOnlyStore });
 </script>
-
-<!-- Tab.svelte -->
-<script>
-  const { iconOnly } = getContext("tabs");
-</script>
-{#if $iconOnly}<Tooltip text={label}><slot /></Tooltip>{:else}<span>{label}</span>{/if}
 ```
 
-With `<Tabs><Tab label="One" /></Tabs>`, `Tab` renders only
-`{#if true}<span>{label}</span>{/if}`, and `Tooltip` is no longer
-bundled. A
-store a reader may write, or that a provider above may receive, keeps
-every value.
+```diff
+ <!-- Tab.svelte, in <Tabs><Tab label="One" /></Tabs> -->
+ <script>
+   const { iconOnly } = getContext("tabs");
+ </script>
+-{#if $iconOnly}<Tooltip text={label}><slot /></Tooltip>{:else}<span>{label}</span>{/if}
++<span>{label}</span>
+```
 
-**Only what the app uses.** A component your app imports but never
-names again (not in markup, scripts, comments or strings) adds no call
-site, so it's specialized only for where the library itself renders it:
+`Tooltip` is no longer bundled. A store a reader may write, or that a provider above may receive, keeps every value.
+
+**Only what the app uses.** A component your app imports but never names again (not in markup, scripts, comments or strings) adds no call site, so it's specialized only for where the library itself renders it:
 
 ```svelte
 <script>
@@ -365,8 +486,7 @@ site, so it's specialized only for where the library itself renders it:
 <TextField label="Name" />
 ```
 
-`TextField` renders `<Field placement="inset">`, so `Field` keeps only
-its `inset` branch.
+`TextField` renders `<Field placement="inset">`, so `Field` keeps only its `inset` branch.
 
 ## How it stays safe
 
@@ -387,7 +507,7 @@ its `inset` branch.
 
 The app's own components are rewritten too, when every file that renders them is in `content`: a wrapper's props come from its call sites, so `<Card tone="danger">` reaches the `Button` inside it.
 
-## Results
+## Correctness
 
 On real libraries, each component with every prop value it compares against plus random mixes of them, SSR-rendered with the original and the rewritten library:
 
@@ -401,34 +521,7 @@ On real libraries, each component with every prop value it compares against plus
 | bits-ui                       | 159        | 859                        | 0                          |
 | @skeletonlabs/skeleton-svelte | 131        | 327                        | 0                          |
 
-How much it saves depends on how a library is written. Gzipped client JS of a realistic page built with Vite ([`examples/`](examples/README.md)):
-
-| Library                       | Style                      | Smaller by |
-| :---------------------------- | :------------------------- | :--------- |
-| flowbite-svelte               | Tailwind variants          | 37.8%      |
-| carbon-components-svelte      | branches on props          | 34.1%      |
-| svelte-5-ui-lib               | Tailwind variants          | 22.9%      |
-| @sveltestrap/sveltestrap      | branches on props          | 22.0%      |
-| svelte-ux                     | Tailwind                   | 7.4%       |
-| bits-ui                       | headless, state in classes | 2.2%       |
-| @skeletonlabs/skeleton-svelte | headless, state machines   | 0%         |
-
-Libraries whose markup branches on their props gain the most, and so do those whose tailwind-variants tables hold every variant's classes. Headless libraries that keep their state in classes or hand their props to a state machine leave little to fold.
-
-Tailwind's CSS for the same pages (v4, with each library's plugin), gzipped, scanning `node_modules/.svelte-prune` instead of the package:
-
-| Library         | Smaller by |
-| :-------------- | :--------- |
-| svelte-5-ui-lib | 71.7%      |
-| flowbite-svelte | 60.9%      |
-| svelte-ux       | 35.5%      |
-
-The libraries' own stylesheets for the same pages, gzipped, with `styles` in their spec ([Stylesheets](#stylesheets)):
-
-| Library                  | Stylesheet                     | Smaller by |
-| :----------------------- | :----------------------------- | :--------- |
-| carbon-components-svelte | `css/white.css`, `classTokens` | 70.8%      |
-| @sveltestrap/sveltestrap | Bootstrap 5                    | 46.8%      |
+The [`examples/`](examples/README.md) behind [Results](#results) also compare each page's rendered HTML and its behavior in a browser, and fail when a selector whose classes all appear on the page goes missing from the CSS.
 
 ## Limitations
 

@@ -2,7 +2,7 @@
   "name": "svelte-prune",
   "version": "0.9.0",
   "license": "MIT",
-  "description": "Zero-dependency Svelte component specializer: rewrites each component a library ships for the props an app passes it, so branches that can never render are cut from the build.",
+  "description": "Ship only the Svelte library code your app renders.",
   "author": "Eric Liu (https://github.com/metonym)",
   "type": "module",
   "main": "./dist/index.js",
