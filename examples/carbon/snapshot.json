@@ -1,8 +1,8 @@
 {
-  "library": "carbon-components-svelte@0.113.1",
+  "library": "carbon-components-svelte@0.114.3",
   "rewritten": {
-    "components": 82,
-    "edits": 1647,
+    "components": 85,
+    "edits": 1985,
     "tables": {
       "pruned": 0,
       "emptied": 0,
@@ -12,31 +12,31 @@
   },
   "js": {
     "original": {
-      "bytes": 379048,
-      "gzip": 107882
+      "bytes": 521909,
+      "gzip": 152382
     },
     "severan": {
-      "bytes": 239807,
-      "gzip": 75742
+      "bytes": 316647,
+      "gzip": 101430
     },
-    "gzipSmallerBy": "29.8%"
+    "gzipSmallerBy": "33.4%"
   },
   "css": {
     "original": {
-      "bytes": 557390,
-      "gzip": 65796
+      "bytes": 772738,
+      "gzip": 93956
     },
     "severan": {
-      "bytes": 156245,
-      "gzip": 18735
+      "bytes": 229097,
+      "gzip": 28169
     },
-    "gzipSmallerBy": "71.5%",
+    "gzipSmallerBy": "70.0%",
     "renderedSelectorsLost": 0
   },
   "html": {
     "identical": true,
-    "bytes": 26372,
-    "sha1": "1668d385f849aaed9d8fd38e61c84751db3896f8"
+    "bytes": 27419,
+    "sha1": "f312cc3518c28110035a1a9dae052ebb1c3d0d74"
   },
   "browser": {
     "steps": 18,
