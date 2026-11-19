@@ -1,7 +1,7 @@
 # Examples
 
 Apps that use real component libraries, each built with Vite with and
-without severan. One page per library, from what a real app renders:
+without svelte-prune. One page per library, from what a real app renders:
 
 | Example           | Library                       | CSS                                        |
 | :---------------- | :---------------------------- | :----------------------------------------- |
@@ -14,7 +14,7 @@ without severan. One page per library, from what a real app renders:
 | `bits-ui`         | bits-ui                       | none (headless)                            |
 
 ```sh
-bun install --cwd examples   # once: the libraries live here, not in severan's devDependencies
+bun install --cwd examples   # once: the libraries live here, not in svelte-prune's devDependencies
 bun run examples             # fails on any change from each example's snapshot.json
 bun run examples --update    # writes them
 bun run examples --only flowbite-svelte
@@ -24,14 +24,14 @@ Each example's `LibrarySpec` is its `library.json`, or `library.js` for
 one with functions (Carbon's `classTokens`). Each run builds `dist/` and,
 per example, a client and an SSR build both
 ways (in `.out/`), then writes `snapshot.json`: the shipped JS and CSS
-(bytes and gzip), what severan rewrote, and the rendered HTML, which must
+(bytes and gzip), what svelte-prune rewrote, and the rendered HTML, which must
 be the same both ways. CSS may lose no selector whose classes all appear
 on the rendered page. Both client builds then run in Chromium
 ([`scripts/browser-check.ts`](../scripts/browser-check.ts)): they must
 throw and log the same errors, and settle into the same DOM after loading
 and after clicking each button. That covers what SSR never runs (actions,
 effects, event handlers). Install Chromium once with
-`bunx playwright install chromium` in `examples/`. With severan, a Tailwind example's `src/app.css` is
-swapped for `src/app.severan.css`, whose `@source` points at
-`node_modules/.severan`: the one line an app changes. Commit the snapshots
+`bunx playwright install chromium` in `examples/`. With svelte-prune, a Tailwind example's `src/app.css` is
+swapped for `src/app.svelte-prune.css`, whose `@source` points at
+`node_modules/.svelte-prune`: the one line an app changes. Commit the snapshots
 with the change that moved them.

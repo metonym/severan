@@ -25,4 +25,4 @@
   --color-primary-950: #8a2e16;
   --color-secondary-950: #082f49;
 }
-@source "../node_modules/.severan/svelte-5-ui-lib";
+@source "../node_modules/.svelte-prune/svelte-5-ui-lib";

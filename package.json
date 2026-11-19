@@ -1,5 +1,5 @@
 {
-  "name": "severan",
+  "name": "svelte-prune",
   "version": "0.9.0",
   "license": "MIT",
   "description": "Zero-dependency Svelte component specializer: rewrites each component a library ships for the props an app passes it, so branches that can never render are cut from the build.",
@@ -38,10 +38,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/metonym/severan.git"
+    "url": "git+https://github.com/metonym/svelte-prune.git"
   },
-  "homepage": "https://github.com/metonym/severan",
-  "bugs": "https://github.com/metonym/severan/issues",
+  "homepage": "https://github.com/metonym/svelte-prune",
+  "bugs": "https://github.com/metonym/svelte-prune/issues",
   "keywords": [
     "svelte",
     "specialize",

@@ -14,7 +14,7 @@ export const CARBON: LibrarySpec = {
   componentPackages: ["carbon-icons-svelte", "carbon-pictograms-svelte"],
   contextKeyPrefix: "carbon:",
   label: "Carbon",
-  tool: "severan",
+  tool: "svelte-prune",
   classTokens: {
     marker: "bx--",
     text: (text) =>

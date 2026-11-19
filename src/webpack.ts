@@ -9,7 +9,7 @@ import {
   DEFAULT_NAMES,
   type ImportResolver,
   type PluginNames,
-  type SeveranOptions,
+  type SveltePruneOptions,
   writeOriginalsForTailwind,
 } from "./optimizer";
 import { RE_EXT_JS, RE_EXT_SVELTE } from "./util";
@@ -127,7 +127,7 @@ const LOADER = (() => {
 })();
 
 /**
- * `severan` for webpack and Rspack: rewrites each component of `library`
+ * `svelte-prune` for webpack and Rspack: rewrites each component of `library`
  * the app renders for the props it passes.
  *
  * Runs on production builds only. It adds a loader before `svelte-loader`
@@ -135,16 +135,16 @@ const LOADER = (() => {
  * tailwind-variants tables), and fails the build if a module outside
  * `content` imports one of the library's components.
  */
-export class SeveranPlugin {
+export class SveltePrunePlugin {
   private readonly spec: LibrarySpec;
-  private readonly options: SeveranOptions | undefined;
+  private readonly options: SveltePruneOptions | undefined;
   /** `plugin` also names webpack's hooks; `loader` is the built loader's path. */
   private readonly names: PluginNames & { loader: string };
 
   public constructor(
     library: LibrarySpec,
-    options?: SeveranOptions,
-    names: Partial<SeveranPlugin["names"]> = {},
+    options?: SveltePruneOptions,
+    names: Partial<SveltePrunePlugin["names"]> = {},
   ) {
     this.spec = library;
     this.options = options;

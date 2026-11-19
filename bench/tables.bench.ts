@@ -18,7 +18,7 @@ const root = path.join(
 );
 const { app } = writeTablesProject(root);
 const library = libraryAt(TABLES, path.join(root, "node_modules", TABLES.name));
-const FAILURE = { feature: "severan", fallback: "nothing was rewritten" };
+const FAILURE = { feature: "svelte-prune", fallback: "nothing was rewritten" };
 
 const specialize = () =>
   specializeFiles({

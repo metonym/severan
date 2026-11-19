@@ -8,7 +8,7 @@ import { join, resolve } from "node:path";
 import { $ } from "bun";
 
 const root = resolve(import.meta.dir, "..");
-const dir = await mkdtemp(join(tmpdir(), "severan-package-"));
+const dir = await mkdtemp(join(tmpdir(), "svelte-prune-package-"));
 
 try {
   await $`bun run build`.cwd(root).quiet();
@@ -84,9 +84,9 @@ try {
     join(dir, "smoke.js"),
     `import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { specializeFiles } from "severan";
-import { severan } from "severan/vite";
-import { SeveranPlugin } from "severan/webpack";
+import { specializeFiles } from "svelte-prune";
+import { sveltePrune } from "svelte-prune/vite";
+import { SveltePrunePlugin } from "svelte-prune/webpack";
 
 const library = {
   name: "mylib",
@@ -95,14 +95,14 @@ const library = {
   componentPackages: [],
   contextKeyPrefix: "mylib:",
   label: "mylib",
-  tool: "severan",
+  tool: "svelte-prune",
 };
 const file = new URL("./src/App.svelte", import.meta.url).pathname;
 const result = await specializeFiles({
   library,
   projectRoot: process.cwd(),
   files: [{ file, code: readFileSync(file, "utf8") }],
-  failure: { feature: "severan", fallback: "unchanged" },
+  failure: { feature: "svelte-prune", fallback: "unchanged" },
 });
 assert.ok(!("warning" in result), result.warning);
 const [button] = result.sources.values();
@@ -110,17 +110,17 @@ assert.ok(button.code.includes('class="ghost"'));
 assert.ok(!button.code.includes("{:else}"));
 assert.equal(button.map.version, 3);
 
-assert.equal(severan(library).name, "severan");
-assert.equal(typeof new SeveranPlugin(library).apply, "function");
+assert.equal(sveltePrune(library).name, "svelte-prune");
+assert.equal(typeof new SveltePrunePlugin(library).apply, "function");
 `,
   );
   await $`node smoke.js`.cwd(dir);
 
   await writeFile(
     join(dir, "consumer.ts"),
-    `import { type LibrarySpec, type SeveranOptions, specializeFiles } from "severan";
-import { severan } from "severan/vite";
-import { SeveranPlugin } from "severan/webpack";
+    `import { type LibrarySpec, type SveltePruneOptions, specializeFiles } from "svelte-prune";
+import { sveltePrune } from "svelte-prune/vite";
+import { SveltePrunePlugin } from "svelte-prune/webpack";
 import type { Plugin } from "vite";
 
 const library: LibrarySpec = {
@@ -130,11 +130,11 @@ const library: LibrarySpec = {
   componentPackages: [],
   contextKeyPrefix: "mylib:",
   label: "mylib",
-  tool: "severan",
+  tool: "svelte-prune",
 };
-const options: SeveranOptions = { content: ["src/**/*.svelte"], report: true };
-const plugin: Plugin = severan(library, options);
-const webpackPlugin = new SeveranPlugin(library, options);
+const options: SveltePruneOptions = { content: ["src/**/*.svelte"], report: true };
+const plugin: Plugin = sveltePrune(library, options);
+const webpackPlugin = new SveltePrunePlugin(library, options);
 void specializeFiles;
 void plugin;
 void webpackPlugin;
@@ -160,7 +160,7 @@ void webpackPlugin;
   await $`${tsc} -p tsconfig.json`.cwd(dir);
 
   console.log(
-    "✓ Specializes in Node; severan/vite and severan/webpack load; types check for consumers",
+    "✓ Specializes in Node; svelte-prune/vite and svelte-prune/webpack load; types check for consumers",
   );
 } finally {
   await rm(dir, { recursive: true, force: true });

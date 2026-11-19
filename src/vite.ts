@@ -5,7 +5,7 @@ import {
   createComponentOptimizer,
   DEFAULT_NAMES,
   type PluginNames,
-  type SeveranOptions,
+  type SveltePruneOptions,
   writeOriginalsForTailwind,
 } from "./optimizer";
 
@@ -21,14 +21,17 @@ import {
  * `styles` in `library`, the CSS a build emits loses the rules of the
  * library's stylesheets that nothing can match. With
  * Tailwind installed, every build (the dev server's included) writes what
- * of the library can render to `node_modules/.severan/<name>`, for Tailwind
+ * of the library can render to `node_modules/.svelte-prune/<name>`, for Tailwind
  * to scan instead of the package.
  */
-export function severan(
+export function sveltePrune(
   library: LibrarySpec,
-  options?: SeveranOptions,
+  options?: SveltePruneOptions,
   /** How it names itself in messages; `id` is its name in the bundler. */
-  names: PluginNames & { id: string } = { ...DEFAULT_NAMES, id: "severan" },
+  names: PluginNames & { id: string } = {
+    ...DEFAULT_NAMES,
+    id: "svelte-prune",
+  },
 ): Plugin {
   let root = process.cwd();
   // Never rewrite for the dev server: HMR would leave rewritten components

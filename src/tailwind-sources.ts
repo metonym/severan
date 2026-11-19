@@ -1,9 +1,9 @@
 /**
  * Tailwind generates a utility for every class string it scans, and an app
  * points it at the library's files on disk. With Tailwind installed, each
- * build writes what of the library can render to `node_modules/.severan/<name>`:
+ * build writes what of the library can render to `node_modules/.svelte-prune/<name>`:
  * its script modules and the components that can render, rewritten where
- * severan rewrote them. An `@source` (or v3 `content` glob) there, in place
+ * svelte-prune rewrote them. An `@source` (or v3 `content` glob) there, in place
  * of the package's own directory, leaves out the classes that can't render.
  */
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -17,7 +17,7 @@ const MODULE_SCRIPT = /<script\b[^>]*\b(?:module|context=["']module["'])/;
 
 /** Where Tailwind should scan instead of the package. */
 function tailwindSourcesDir(root: string, spec: LibrarySpec): string {
-  return path.join(root, "node_modules", ".severan", spec.name);
+  return path.join(root, "node_modules", ".svelte-prune", spec.name);
 }
 
 export type Rewrite = {

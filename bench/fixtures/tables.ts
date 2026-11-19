@@ -15,7 +15,7 @@ export const TABLES: LibrarySpec = {
   componentPackages: [],
   contextKeyPrefix: "tables-bench:",
   label: "TablesBench",
-  tool: "severan",
+  tool: "svelte-prune",
   tailwind: true,
 };
 

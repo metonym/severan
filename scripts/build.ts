@@ -9,7 +9,7 @@ const entries = {
   index: resolve(root, "src/index.ts"),
   vite: resolve(root, "src/vite.ts"),
   webpack: resolve(root, "src/webpack.ts"),
-  // An entry of its own: `SeveranPlugin` hands webpack and Rspack its path.
+  // An entry of its own: `SveltePrunePlugin` hands webpack and Rspack its path.
   loader: resolve(root, "src/loader.ts"),
   // Unstable, for carbon-preprocess-svelte: `internal` never loads the
   // parser, `internal-analysis` does.

@@ -5,5 +5,5 @@
   "componentPackages": [],
   "contextKeyPrefix": "bits-ui:",
   "label": "bits-ui",
-  "tool": "severan"
+  "tool": "svelte-prune"
 }

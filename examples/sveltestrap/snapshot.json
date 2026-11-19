@@ -15,7 +15,7 @@
       "bytes": 95936,
       "gzip": 29823
     },
-    "severan": {
+    "pruned": {
       "bytes": 68242,
       "gzip": 23260
     },
@@ -26,7 +26,7 @@
       "bytes": 230123,
       "gzip": 30729
     },
-    "severan": {
+    "pruned": {
       "bytes": 105053,
       "gzip": 16351
     },

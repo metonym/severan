@@ -1,5 +1,5 @@
 <script>
-  // A wrapper, as apps write them: severan follows `primary`
+  // A wrapper, as apps write them: svelte-prune follows `primary`
   // from each call site into the Button it renders.
   import { Button } from "carbon-components-svelte";
 

@@ -4,7 +4,7 @@
  * its types are in `internal-analysis.ts`.
  */
 // The bundled copies of sveast's lexer and walker, so a package bundling
-// severan doesn't ship them twice.
+// svelte-prune doesn't ship them twice.
 export {
   type LexedImport,
   lexComponent,
@@ -21,7 +21,7 @@ export {
 export { default as loader, optimizerRegistry } from "./loader";
 export { MappingsBuilder } from "./mapped-text";
 export { libraryImports } from "./module-graph";
-export type { PluginNames, SeveranOptions } from "./optimizer";
+export type { PluginNames, SveltePruneOptions } from "./optimizer";
 export {
   isLinkedCheckout,
   listJsAndSvelteFiles,
@@ -40,8 +40,8 @@ export {
   RE_EXT_SVELTE,
   stripQuery,
 } from "./util";
-export { severan } from "./vite";
-export { SeveranPlugin, type WebpackCompiler } from "./webpack";
+export { sveltePrune } from "./vite";
+export { SveltePrunePlugin, type WebpackCompiler } from "./webpack";
 export {
   importEdges,
   isProduction,

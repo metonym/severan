@@ -1,8 +1,8 @@
-# severan
+# svelte-prune
 
 > Zero-dependency Svelte component specializer. Rewrites each component a library ships for the props your app passes it, so branches that can never render are cut from the build.
 
-A component library's `Button` handles every `kind`, `size` and state any app might ask for, and your bundle carries all of it. severan reads every call site in your app before the build, works out which values each prop can take, and hands Svelte a copy of each component rewritten for those values: props that never change become literals, `{#if}` branches that can't run are removed, and child components only those branches render are no longer bundled. Props nothing reads anymore are removed, props no call site passes become the component's own variables, and the events a component passes on (`on:click`) or dispatches (`dispatch("change")`) are removed where no call site listens to them.
+A component library's `Button` handles every `kind`, `size` and state any app might ask for, and your bundle carries all of it. svelte-prune reads every call site in your app before the build, works out which values each prop can take, and hands Svelte a copy of each component rewritten for those values: props that never change become literals, `{#if}` branches that can't run are removed, and child components only those branches render are no longer bundled. Props nothing reads anymore are removed, props no call site passes become the component's own variables, and the events a component passes on (`on:click`) or dispatches (`dispatch("change")`) are removed where no call site listens to them.
 
 ```svelte
 <!-- the library's Button.svelte -->
@@ -31,14 +31,14 @@ If your app only ever writes `<Button kind="ghost">`, Svelte compiles this inste
 {/if}
 ```
 
-Libraries that keep their classes in [tailwind-variants](https://www.tailwind-variants.org/) tables (`tv({ variants: { color: { red: "…", green: "…" } } })`), with `tailwind: true` in their [`LibrarySpec`](#libraryspec), get those tables rewritten too: keys no live call can select are removed, and a table nothing calls keeps no classes. With Tailwind, scanning what severan writes for it leaves those classes out of your CSS as well (see [Tailwind](#tailwind)).
+Libraries that keep their classes in [tailwind-variants](https://www.tailwind-variants.org/) tables (`tv({ variants: { color: { red: "…", green: "…" } } })`), with `tailwind: true` in their [`LibrarySpec`](#libraryspec), get those tables rewritten too: keys no live call can select are removed, and a table nothing calls keeps no classes. With Tailwind, scanning what svelte-prune writes for it leaves those classes out of your CSS as well (see [Tailwind](#tailwind)).
 
 Name the library's stylesheets in `styles` and the CSS each build emits loses their rules nothing can match, too: a rule goes when it needs a class those stylesheets define that no live component renders and the app never names (see [Stylesheets](#stylesheets)).
 
 It runs on production builds, in Vite, Rollup, Rolldown, webpack and Rspack, for Svelte 3, 4 and 5 (runes included). Rewritten components come with source maps back to their original source.
 
 ```sh
-bun i -d severan
+bun i -d svelte-prune
 ```
 
 ## Usage
@@ -48,7 +48,7 @@ bun i -d severan
 ```ts
 // vite.config.ts
 import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { severan } from "severan/vite";
+import { sveltePrune } from "svelte-prune/vite";
 
 const library = {
   name: "my-library", // the package your app imports
@@ -57,11 +57,11 @@ const library = {
   componentPackages: [], // packages whose exports are components (icon sets)
   contextKeyPrefix: "my-library:", // what its context keys start with
   label: "My Library", // names it in messages
-  tool: "severan", // starts every warning and error
+  tool: "svelte-prune", // starts every warning and error
 };
 
 export default {
-  plugins: [severan(library), svelte()],
+  plugins: [sveltePrune(library), svelte()],
 };
 ```
 
@@ -69,10 +69,10 @@ export default {
 
 ```js
 // webpack.config.js
-import { SeveranPlugin } from "severan/webpack";
+import { SveltePrunePlugin } from "svelte-prune/webpack";
 
 export default {
-  plugins: [new SeveranPlugin(library)],
+  plugins: [new SveltePrunePlugin(library)],
 };
 ```
 
@@ -80,13 +80,13 @@ It adds a loader that runs before `svelte-loader` on `.svelte` files.
 
 ### Tailwind
 
-Tailwind generates a utility for every class string it scans, and a library's setup has it scan the package (`@source "../node_modules/my-library/dist"`). For a library with `tailwind: true` in its [`LibrarySpec`](#libraryspec), and with Tailwind installed, every build writes what of the library can render to `node_modules/.severan/<name>`: every file but the components that can't render, as severan rewrote them (components and tailwind-variants tables). Scan that instead, with Tailwind v4's `@source`:
+Tailwind generates a utility for every class string it scans, and a library's setup has it scan the package (`@source "../node_modules/my-library/dist"`). For a library with `tailwind: true` in its [`LibrarySpec`](#libraryspec), and with Tailwind installed, every build writes what of the library can render to `node_modules/.svelte-prune/<name>`: every file but the components that can't render, as svelte-prune rewrote them (components and tailwind-variants tables). Scan that instead, with Tailwind v4's `@source`:
 
 ```css
-@source "../node_modules/.severan/my-library";
+@source "../node_modules/.svelte-prune/my-library";
 ```
 
-or a Tailwind v3 `content` glob: `"./node_modules/.severan/my-library/**/*.{svelte,js}"`. The dev server and development builds write the library as it is, so their CSS has every class.
+or a Tailwind v3 `content` glob: `"./node_modules/.svelte-prune/my-library/**/*.{svelte,js}"`. The dev server and development builds write the library as it is, so their CSS has every class.
 
 ### Stylesheets
 
@@ -117,27 +117,27 @@ Once those rules are gone, the custom properties (`--x`) and `@keyframes` the st
 
 ## API reference
 
-severan has no CLI: it runs inside your bundler (`severan/vite`, `severan/webpack`), or from your own script with `specializeFiles` (`severan`). Each entry ships its own types:
+svelte-prune has no CLI: it runs inside your bundler (`svelte-prune/vite`, `svelte-prune/webpack`), or from your own script with `specializeFiles` (`svelte-prune`). Each entry ships its own types:
 
 ```ts
 import {
   type LibrarySpec,
-  type SeveranOptions,
+  type SveltePruneOptions,
   specializeFiles,
-} from "severan";
-import type { Failure, SpecializedComponents } from "severan";
-import { severan } from "severan/vite";
-import { SeveranPlugin, type WebpackCompiler } from "severan/webpack";
+} from "svelte-prune";
+import type { Failure, SpecializedComponents } from "svelte-prune";
+import { sveltePrune } from "svelte-prune/vite";
+import { SveltePrunePlugin, type WebpackCompiler } from "svelte-prune/webpack";
 ```
 
-### `severan(library, options?, names?)`
+### `sveltePrune(library, options?, names?)`
 
 ```ts
-import { severan } from "severan/vite";
+import { sveltePrune } from "svelte-prune/vite";
 
-function severan(
+function sveltePrune(
   library: LibrarySpec,
-  options?: SeveranOptions,
+  options?: SveltePruneOptions,
   names?: PluginNames & { id: string },
 ): Plugin;
 ```
@@ -148,15 +148,15 @@ A Vite, Rollup and Rolldown plugin. Put it before the Svelte plugin.
 - `buildStart` reads `content`, resolving aliased `.svelte` imports (`$lib/Card.svelte`) with the bundler. A watch rebuild where nothing in `content` changed reuses the last analysis.
 - `load` serves the rewritten components, with source maps; `transform` and `buildEnd` check the module graph and fail the build when a module the analysis didn't read imports the library (see [Errors](#warnings-and-errors)).
 
-### `new SeveranPlugin(library, options?, names?)`
+### `new SveltePrunePlugin(library, options?, names?)`
 
 ```ts
-import { SeveranPlugin } from "severan/webpack";
+import { SveltePrunePlugin } from "svelte-prune/webpack";
 
-class SeveranPlugin {
+class SveltePrunePlugin {
   constructor(
     library: LibrarySpec,
-    options?: SeveranOptions,
+    options?: SveltePruneOptions,
     names?: Partial<PluginNames & { loader: string }>,
   );
   apply(compiler: WebpackCompiler): void;
@@ -177,12 +177,12 @@ Describes the library to rewrite. Every field but `classTokens`, `styles` and `t
 | `componentPackages` | `readonly string[]`        | Packages whose exports are components (an icon set), so passing one as a prop passes an object.                                                                                                                                                                                                                                                                                          |
 | `contextKeyPrefix`  | `string`                   | What its context keys start with (`"my-library:"`): an app module that holds such a string may set or read its contexts.                                                                                                                                                                                                                                                                 |
 | `label`             | `string`                   | Names the library in messages: `"My Library"`.                                                                                                                                                                                                                                                                                                                                           |
-| `tool`              | `string`                   | Starts every warning and error: `"severan"`.                                                                                                                                                                                                                                                                                                                                             |
+| `tool`              | `string`                   | Starts every warning and error: `"svelte-prune"`.                                                                                                                                                                                                                                                                                                                                        |
 | `classTokens`       | `{ marker, text, script }` | Optional. How to read the library's class names: `text` returns the classes (`.x--a`) in a string that contains `marker`, `script` adds those a whole script module names. Without it, a library with `styles` reads every run of word characters and hyphens. See [Stylesheets](#stylesheets).                                                                                          |
 | `styles`            | `{ stylesheets, keep? }`   | Optional. `stylesheets`: the library's CSS, as `"<package>/<path>"` with `*` matching within a path segment. `keep`: classes always kept. With it, production builds prune those stylesheets' rules from the CSS they emit (see [Stylesheets](#stylesheets)).                                                                                                                            |
 | `tailwind`          | `boolean`                  | Optional, `false` by default. `true` for a library whose classes are Tailwind's: its tailwind-variants tables are rewritten, and with Tailwind installed, builds write what of it can render for [Tailwind](#tailwind) to scan, the dev server's and non-production webpack builds included. Without it, the analysis never loads that code, and the plugins skip those builds entirely. |
 
-### `SeveranOptions`
+### `SveltePruneOptions`
 
 | Option     | Default                                                                |                                                                                                                                                                                                                                                                                                                                                                      |
 | :--------- | :--------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -194,20 +194,20 @@ Describes the library to rewrite. Every field but `classTokens`, `styles` and `t
 
 ### `names`
 
-For a package that wraps severan and reports under its own name. `severan()` replaces its defaults whole, so pass `plugin`, `failure` and `id`; `SeveranPlugin` takes any of its fields.
+For a package that wraps svelte-prune and reports under its own name. `sveltePrune()` replaces its defaults whole, so pass `plugin`, `failure` and `id`; `SveltePrunePlugin` takes any of its fields.
 
 | Field              | Default                               |                                                                                                                          |
 | :----------------- | :------------------------------------ | :----------------------------------------------------------------------------------------------------------------------- |
-| `plugin`           | `"severan"`                           | Names the plugin in errors, and webpack's hooks and logger.                                                              |
-| `failure.feature`  | `"severan"`                           | Names what a failed analysis turns off, in its warning and the `report` heading (after `tool`, unless they're the same). |
+| `plugin`           | `"svelte-prune"`                      | Names the plugin in errors, and webpack's hooks and logger.                                                              |
+| `failure.feature`  | `"svelte-prune"`                      | Names what a failed analysis turns off, in its warning and the `report` heading (after `tool`, unless they're the same). |
 | `failure.fallback` | `"components were bundled unchanged"` | What happens instead, in that warning.                                                                                   |
-| `id`               | `"severan"`                           | `severan()` only: the plugin's name in the bundler.                                                                      |
+| `id`               | `"svelte-prune"`                      | `sveltePrune()` only: the plugin's name in the bundler.                                                                  |
 | `loader`           | the bundled loader                    | webpack only: the path of the loader to add.                                                                             |
 
 ### `specializeFiles(input)`
 
 ```ts
-import { specializeFiles } from "severan";
+import { specializeFiles } from "svelte-prune";
 
 function specializeFiles(input: {
   library: LibrarySpec;
@@ -228,12 +228,12 @@ The analysis and rewrite the plugins run, for a set of files and without a bundl
 | `projectRoot`        | Where the library is resolved from (Yarn Plug'n'Play included), and what the report's paths are relative to.                                                   |
 | `files`              | Absolute paths and their source.                                                                                                                               |
 | `failure`            | `{ feature, fallback }` for the warning if the analysis throws.                                                                                                |
-| `options.unwrap`     | Default`false`. As in `SeveranOptions`; pass `true` on Svelte 5.                                                                                               |
+| `options.unwrap`     | Default`false`. As in `SveltePruneOptions`; pass `true` on Svelte 5.                                                                                           |
 | `options.dropUnused` | Default`true`. Remove top-level declarations nothing reads after the rewrite.                                                                                  |
 | `options.emptyBlock` | Default`{#if false}<!---->{/if}`. What replaces an `{#if}` that renders nothing between whitespace.                                                            |
 | `options.editFilter` | `(index, { start, end }) => boolean`. Debugging: apply only the top-level edits it accepts.                                                                    |
 | `resolvedImports`    | Non-relative `.svelte` imports you resolved yourself (`$lib/Card.svelte`), keyed `` `${importer}\0${specifier}` ``, to the absolute path of a file in `files`. |
-| `safelist`           | As in `SeveranOptions`.                                                                                                                                        |
+| `safelist`           | As in `SveltePruneOptions`.                                                                                                                                    |
 
 It never throws: if the analysis fails, it resolves to `{ warning }` and nothing is rewritten. Otherwise to `SpecializedComponents`:
 
@@ -255,7 +255,7 @@ const result = await specializeFiles({
   projectRoot: process.cwd(),
   files: [{ file: "/app/src/App.svelte", code }],
   failure: {
-    feature: "severan",
+    feature: "svelte-prune",
     fallback: "components were bundled unchanged",
   },
   options: { unwrap: true },
@@ -415,7 +415,7 @@ How much it saves depends on how a library is written. Gzipped client JS of a re
 
 Libraries whose markup branches on their props gain the most, and so do those whose tailwind-variants tables hold every variant's classes. Headless libraries that keep their state in classes or hand their props to a state machine leave little to fold.
 
-Tailwind's CSS for the same pages (v4, with each library's plugin), gzipped, scanning `node_modules/.severan` instead of the package:
+Tailwind's CSS for the same pages (v4, with each library's plugin), gzipped, scanning `node_modules/.svelte-prune` instead of the package:
 
 | Library         | Smaller by |
 | :-------------- | :--------- |

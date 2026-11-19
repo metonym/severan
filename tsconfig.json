@@ -10,9 +10,9 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "paths": {
-      "severan": ["./src/index.ts"],
-      "severan/vite": ["./src/vite.ts"],
-      "severan/webpack": ["./src/webpack.ts"]
+      "svelte-prune": ["./src/index.ts"],
+      "svelte-prune/vite": ["./src/vite.ts"],
+      "svelte-prune/webpack": ["./src/webpack.ts"]
     },
     "types": ["bun", "jest"]
   },

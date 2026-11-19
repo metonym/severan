@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+**Breaking changes**
+
+- Renamed from `severan` to `svelte-prune`. Install `svelte-prune` and
+  update imports and names:
+  - `severan`, `severan/vite`, `severan/webpack` → `svelte-prune`,
+    `svelte-prune/vite`, `svelte-prune/webpack` (and `/internal`,
+    `/internal/analysis`)
+  - `severan()` → `sveltePrune()`
+  - `SeveranPlugin` → `SveltePrunePlugin`
+  - `SeveranOptions` → `SveltePruneOptions`
+  - Tailwind's `@source` (or v3 `content` glob):
+    `node_modules/.severan/<name>` → `node_modules/.svelte-prune/<name>`
+  - The default `plugin`, `failure.feature` and `id` in `names` are now
+    `"svelte-prune"`.
+
 ## 0.9.0
 
 **Features**

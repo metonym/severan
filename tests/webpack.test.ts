@@ -3,7 +3,7 @@ import path from "node:path";
 import webpack from "webpack";
 import type { LibrarySpec } from "../src/library-paths";
 import { optimizerRegistry } from "../src/loader";
-import { SeveranPlugin } from "../src/webpack";
+import { SveltePrunePlugin } from "../src/webpack";
 import { CARBON } from "./helpers/carbon";
 import { createFakeProject } from "./helpers/fake-project";
 import { resolvePackageRoot } from "./helpers/resolve-package-root";
@@ -20,7 +20,7 @@ const CARD_ESCAPED =
 const UNREAD_MODAL =
   /can't read how src[\\/]App\.svelte imports `@carbon\/src\/Modal\/Modal\.svelte`/;
 const MISSED_TOOLBAR =
-  /severan rewrote Carbon components before seeing lib[\\/]toolbar\.js/;
+  /svelte-prune rewrote Carbon components before seeing lib[\\/]toolbar\.js/;
 const TABLE_IMPORTED =
   /rewrote the tailwind-variants tables in node_modules[\\/]tvlib[\\/]src[\\/]theme\.js .* but src[\\/]index\.js imports it directly/;
 
@@ -51,7 +51,7 @@ async function build(
     resolve,
     optimization: { minimize: false },
     devtool: false,
-    plugins: [new SeveranPlugin(library, { silent: true })],
+    plugins: [new SveltePrunePlugin(library, { silent: true })],
     infrastructureLogging: { level: "none" },
   });
   const stats = await new Promise<webpack.Stats>((resolve, reject) =>
@@ -73,10 +73,10 @@ const APP = {
   "src/index.js": `import App from "./App.svelte";\nconsole.log(App);`,
 };
 
-describe("SeveranPlugin with `styles`", () => {
+describe("SveltePrunePlugin with `styles`", () => {
   const CSS = ".bx--btn--tertiary{a:1}.bx--btn--danger{a:2}.app-shell{a:3}";
 
-  /** Emits `main.css` the way a CSS extraction plugin would, before severan's stage. */
+  /** Emits `main.css` the way a CSS extraction plugin would, before svelte-prune's stage. */
   class EmitCss {
     apply(compiler: webpack.Compiler) {
       compiler.hooks.thisCompilation.tap("EmitCss", (compilation) => {
@@ -116,7 +116,7 @@ describe("SeveranPlugin with `styles`", () => {
         devtool: false,
         plugins: [
           new EmitCss(),
-          new SeveranPlugin(
+          new SveltePrunePlugin(
             {
               ...CARBON,
               styles: {
@@ -148,7 +148,7 @@ describe("SeveranPlugin with `styles`", () => {
   });
 });
 
-describe("SeveranPlugin", () => {
+describe("SveltePrunePlugin", () => {
   test("hands the next loader Carbon rewritten for the app", async () => {
     const { stats, code, dispose } = await build(APP);
     try {
@@ -193,8 +193,8 @@ describe("SeveranPlugin", () => {
         thisCompilation: { tap },
       },
     };
-    new SeveranPlugin({ ...TVLIB, tailwind: undefined }).apply(
-      compiler as unknown as Parameters<SeveranPlugin["apply"]>[0],
+    new SveltePrunePlugin({ ...TVLIB, tailwind: undefined }).apply(
+      compiler as unknown as Parameters<SveltePrunePlugin["apply"]>[0],
     );
     expect(tap).not.toHaveBeenCalled();
     expect(compiler.options.module.rules).toEqual([]);

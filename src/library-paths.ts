@@ -30,7 +30,7 @@ export function classTokensOf(
   return spec.classTokens ?? (spec.styles ? PLAIN_CLASS_TOKENS : undefined);
 }
 
-/** A Svelte component library severan reads and rewrites. */
+/** A Svelte component library svelte-prune reads and rewrites. */
 export type LibrarySpec = {
   /** The package apps import: `"my-library"`. */
   name: string;
@@ -71,7 +71,7 @@ export type LibrarySpec = {
    * `true` for a library whose classes are Tailwind's: its tailwind-variants
    * tables are rewritten, and with Tailwind installed, every build (the dev
    * server's included) writes what of it can render to
-   * `node_modules/.severan/<name>`, for Tailwind to scan. @default false
+   * `node_modules/.svelte-prune/<name>`, for Tailwind to scan. @default false
    */
   tailwind?: boolean;
 };

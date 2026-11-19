@@ -16,7 +16,7 @@ import {
 import { installedMajor, packageSignature, requirePackageDir } from "./package";
 import { importKey, RE_EXT_STYLESHEET, realpath, stripQuery } from "./util";
 
-export type SeveranOptions = {
+export type SveltePruneOptions = {
   /**
    * Globs (relative to the project root) of every file that renders the
    * library's components; a module outside them that imports one fails the
@@ -62,7 +62,7 @@ const LEXABLE = /\.(svelte|[cm]?[jt]sx?)$/;
 const ALIAS_SVELTE_IMPORT =
   /\b(?:from|import)\s*["']([^"'./][^"']*\.svelte)["']/g;
 
-/** With Tailwind installed, the library is written to `node_modules/.severan` for it to scan. */
+/** With Tailwind installed, the library is written to `node_modules/.svelte-prune` for it to scan. */
 const usesTailwind = (spec: LibrarySpec, root: string) =>
   spec.tailwind === true && installedMajor("tailwindcss", root) !== undefined;
 
@@ -160,9 +160,9 @@ export type PluginNames = {
 };
 
 export const DEFAULT_NAMES: PluginNames = {
-  plugin: "severan",
+  plugin: "svelte-prune",
   failure: {
-    feature: "severan",
+    feature: "svelte-prune",
     fallback: "components were bundled unchanged",
   },
 };
@@ -193,7 +193,7 @@ function newBuild(root: string) {
 /** Shared by the Vite and webpack plugins. */
 export function createComponentOptimizer(
   spec: LibrarySpec,
-  options: SeveranOptions | undefined,
+  options: SveltePruneOptions | undefined,
   names: PluginNames,
 ) {
   const name = names.plugin;
@@ -276,7 +276,7 @@ export function createComponentOptimizer(
       if (usesTailwind(spec, root)) {
         // A linked library's edits change its signature; one that can't be
         // resolved is written (and warned about) every build.
-        const dir = path.join(root, "node_modules", ".severan", spec.name);
+        const dir = path.join(root, "node_modules", ".svelte-prune", spec.name);
         let key: string | undefined;
         try {
           const libraryRoot = requirePackageDir(spec.name, root);

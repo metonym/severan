@@ -5,6 +5,6 @@
   "componentPackages": [],
   "contextKeyPrefix": "flowbite:",
   "label": "flowbite-svelte",
-  "tool": "severan",
+  "tool": "svelte-prune",
   "tailwind": true
 }
