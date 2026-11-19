@@ -28,7 +28,7 @@
     "@types/jest": "^30.0.0",
     "@typescript/typescript6": "^6.0.2",
     "caligula": "0.4.0",
-    "carbon-components-svelte": "^0.113.1",
+    "carbon-components-svelte": "^0.114.3",
     "knip": "^6.43.0",
     "ostia": "^0.2.12",
     "sveast": "^0.9.6",

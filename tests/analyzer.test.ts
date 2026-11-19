@@ -389,30 +389,32 @@ describe("analyzeUsage", () => {
     ]) {
       expect(isPruned(cls)).toBe(true);
     }
-    expect([...liveComponents]).toEqual([BUTTON]);
+    // Loading stays: the spinner shows from a timer's callback
+    // (`loadingDelay`), not from `loading` itself.
+    expect([...liveComponents]).toEqual([BUTTON, "Loading/Loading.svelte"]);
   });
 
-  // Joined, these sites' props allow an icon-only button with a classic
-  // tooltip; neither site renders one.
+  // Joined, these sites' props allow a labeled button with a shortcut
+  // hint; neither site renders one.
   test("a class only values from different call sites together render is pruned", async () => {
     const { isPruned } = await analyze(
       app(
         IMPORT_BUTTON,
-        `<Button icon={{}} iconDescription="Add" portalTooltip /><Button icon={{}} />`,
+        `<Button icon={{}} shortcut="K" /><Button icon={{}}>Save</Button>`,
       ),
     );
     expect(isPruned(".bx--btn--icon-only")).toBe(false);
-    expect(isPruned(".bx--tooltip__trigger")).toBe(true);
+    expect(isPruned(".bx--btn--shortcut")).toBe(true);
   });
 
   test("a class one call site renders is kept", async () => {
     const { isPruned } = await analyze(
       app(
         IMPORT_BUTTON,
-        `<Button icon={{}} iconDescription="Add" portalTooltip /><Button icon={{}} iconDescription="Edit" />`,
+        `<Button icon={{}} shortcut="K" /><Button shortcut="K">Save</Button>`,
       ),
     );
-    expect(isPruned(".bx--tooltip__trigger")).toBe(false);
+    expect(isPruned(".bx--btn--shortcut")).toBe(false);
   });
 
   test("a component that never renders keeps none of its classes", async () => {
