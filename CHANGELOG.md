@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**
+
+- A library `.js` module that reads a context no longer stops every
+  context's stores from flowing to the components that read them: only
+  the keys it reads stay unknown (all of them if it reads one by a key
+  that can't be read). Carbon 0.114's script modules read five keys, so
+  without this a Toolbar lost the size its DataTable hands it.
+- `getContext(k)?.p` reads only `p` of the context, not every property.
+  Carbon's example on 0.114.3: JS 33.5% smaller (33.4%), CSS 70.4%
+  (70.0%).
+
 ## 0.8.0
 
 **Features**

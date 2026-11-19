@@ -590,7 +590,7 @@ describe("severan/vite", () => {
       const ctx = context();
       await plugin.buildStart.call(ctx);
       plugin.transform(
-        `{ "dependencies": { "carbon-components-svelte": "^0.113.1" } }`,
+        `{ "dependencies": { "carbon-components-svelte": "^0.114.3" } }`,
         path.join(project.root, "package.json"),
       );
       plugin.transform(
