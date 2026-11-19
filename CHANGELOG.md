@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**Features**
+
+- `Array.isArray()`, `Math.round()` and the other rounding, sign and
+  min/max functions, and `includes()`, `some()` and `every()` on arrays
+  and strings are evaluated (`some` and `every` with a callback written
+  inline that only reads). Calling one of those methods on an array no
+  longer makes its contents unknown; on any other object it still does.
+  A `&&`, `||` or `??` whose left side decides it folds even when its
+  right side couldn't be removed on its own. Gzipped JS of the svelte-ux
+  example 7.4% smaller (6.8%), flowbite-svelte 37.3% (37.2%), Carbon 23
+  bytes less.
+
 **Fixes**
 
 - A library `.js` module that reads a context no longer stops every

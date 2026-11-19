@@ -1117,6 +1117,79 @@ function mutates(parent: Node | undefined, child: Node): boolean {
   }
 }
 
+/** Array methods the evaluator models, which change nothing they're called on. */
+export const ARRAY_METHODS: ReadonlySet<string> = new Set([
+  "includes",
+  "some",
+  "every",
+]);
+
+/**
+ * `x.includes(y)`, or `x.some(cb)` and `x.every(cb)` with an inert `cb`:
+ * `name` if `parent` calls `child`, a member read, as that method.
+ */
+function calledArrayMethod(
+  parent: Node | undefined,
+  child: Node,
+): string | undefined {
+  if (
+    parent?.type !== "CallExpression" ||
+    parent.callee !== child ||
+    child.type !== "MemberExpression" ||
+    child.computed ||
+    child.property.type !== "Identifier" ||
+    !ARRAY_METHODS.has(child.property.name) ||
+    parent.arguments.length !== 1
+  ) {
+    return undefined;
+  }
+  const { name } = child.property;
+  return name === "includes" || inertCallback(parent.arguments[0])
+    ? name
+    : undefined;
+}
+
+/** `(item) => item.x`: one parameter, a body that only reads. */
+export function inertCallback(node: Node): node is FunctionNode {
+  if (
+    (node.type !== "ArrowFunctionExpression" &&
+      node.type !== "FunctionExpression") ||
+    node.async ||
+    node.generator ||
+    node.params.length > 1
+  ) {
+    return false;
+  }
+  let inert = true;
+  forEachNode(node.body, (inner) => {
+    switch (inner.type) {
+      case "AssignmentExpression":
+      case "UpdateExpression":
+      case "CallExpression":
+      case "NewExpression":
+      case "AwaitExpression":
+      case "YieldExpression":
+      case "TaggedTemplateExpression":
+      case "ThisExpression":
+        inert = false;
+        break;
+      case "UnaryExpression":
+        if (inner.operator === "delete") inert = false;
+        break;
+    }
+  });
+  return inert && callbackBody(node) !== undefined;
+}
+
+/** What a callback returns: its expression body or lone `return`. */
+export function callbackBody(fn: FunctionNode): Node | undefined {
+  if (fn.body.type !== "BlockStatement") return fn.body;
+  const [only] = fn.body.body;
+  return fn.body.body.length === 1 && only.type === "ReturnStatement"
+    ? (only.argument ?? undefined)
+    : undefined;
+}
+
 /** Whether `parent` assigns `child`, a name, a new value. */
 function assigns(parent: Node | undefined, child: Node): boolean {
   return (
@@ -1186,12 +1259,17 @@ function findEscapes(ast: AST.Root): Map<string, Escape> {
         index--;
       }
       const consumer = stack[index - 1];
+      const method =
+        current !== node ? calledArrayMethod(consumer, current) : undefined;
       if (consumer?.type === "AssignmentExpression" && consumer.left === node) {
         // `x = …` rebinds `x` and leaves the value it held alone; the model
         // reads rebinds as writes (`guardedWrites`, `unknownNames`). An
         // `{#each}` item's is settled below, once every item is known.
         written.add(node.name);
         rebound.add(node.name);
+      } else if (method) {
+        // Calling it changes nothing on an array; on anything else it may.
+        entry(node.name).paths.push([...path.slice(0, -1), `()${method}`]);
       } else if (mutates(consumer, current)) {
         entry(node.name).full = true;
         if (current === node && assigns(consumer, node)) written.add(node.name);

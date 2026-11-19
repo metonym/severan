@@ -2,7 +2,7 @@
   "library": "svelte-5-ui-lib@0.12.6",
   "rewritten": {
     "components": 22,
-    "edits": 163,
+    "edits": 158,
     "tables": {
       "pruned": 15,
       "emptied": 97,
