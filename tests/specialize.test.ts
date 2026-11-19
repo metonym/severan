@@ -197,6 +197,61 @@ describe("specializeComponent", () => {
     expect(code).toContain('{#if o.s === "md"}');
   });
 
+  test("folds the built-ins the evaluator models", () => {
+    const code = specialize(
+      `<script>
+  export let title = "t";
+  export let data = undefined;
+  export let placement = "top";
+  export let rating = 3.6;
+  const marks = [{ label: "a" }, { label: "" }];
+  $: hasLabels = marks.some((m) => m.label !== "");
+  $: allLabels = marks.every((m) => m.label !== "");
+</script>
+{#if Array.isArray(title)}<a>arr</a>{/if}
+{#if Array.isArray(data) && data.length > 0}<b>combo</b>{/if}
+{#if ["top", "left"].includes(placement)}<c>tl</c>{:else}<d>other</d>{/if}
+{#if hasLabels}<e>some</e>{/if}
+{#if allLabels}<f>every</f>{/if}
+{#if Math.round(rating) === 4}<g>4</g>{:else}<h>not 4</h>{/if}
+{#if "abc".includes(title)}<i>sub</i>{/if}`,
+    );
+    for (const gone of ["<a>", "<b>", "<d>", "<f>", "<h>", "<i>"]) {
+      expect(code).not.toContain(gone);
+    }
+    for (const kept of ["<c>tl</c>", "<e>some</e>", "<g>4</g>"]) {
+      expect(code).toContain(kept);
+    }
+  });
+
+  test("keeps a call that may change what it's called on", () => {
+    // An object's own `includes`, and a callback that writes.
+    const own = specialize(
+      `<script>
+  const o = { n: 0, includes(x) { this.n++; return false; } };
+</script>
+<button on:click={() => o.includes(1)}>x</button>{#if o.n === 0}<p>zero</p>{/if}`,
+    );
+    expect(own).toContain("{#if o.n === 0}");
+    const writes = specialize(
+      `<script>
+  const marks = [{ label: "a" }];
+</script>
+<button on:click={() => marks.some((m) => (m.label = ""))}>x</button>{#if marks[0].label === "a"}<p>a</p>{/if}`,
+    );
+    expect(writes).toContain('{#if marks[0].label === "a"}');
+    // A shadowed global isn't the built-in.
+    const shadowed = specialize(
+      `<script>
+  const Math = { round: () => 0 };
+  export let rating = 3.6;
+</script>
+{#if Math.round(rating) === 4}<p>4</p>{/if}`,
+    );
+    expect(shadowed).toContain("Math.round(");
+    expect(shadowed).toContain("<p>4</p>");
+  });
+
   test("if statements keep only the branch that can run", () => {
     const code = specialize(
       `<script>

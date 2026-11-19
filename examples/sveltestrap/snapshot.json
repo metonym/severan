@@ -2,7 +2,7 @@
   "library": "@sveltestrap/sveltestrap@7.1.0",
   "rewritten": {
     "components": 31,
-    "edits": 273,
+    "edits": 271,
     "tables": {
       "pruned": 0,
       "emptied": 0,

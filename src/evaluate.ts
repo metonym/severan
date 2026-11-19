@@ -7,11 +7,14 @@ import {
 } from "sveast/walk";
 import type { Node } from "./ast";
 import {
+  ARRAY_METHODS,
+  callbackBody,
   type ComponentModel,
   contextKey,
   FUNCTION_DECLARATION,
   type FunctionNode,
   type GuardedWrite,
+  inertCallback,
   isTopLevel,
   memberKey,
   propertyName,
@@ -305,10 +308,16 @@ function mayReachObject(value: Value, path: readonly string[]): boolean {
         ? itemsOf(current)
         : segment === "*"
           ? flatMap(current, ownValues)
-          : // Nothing is reachable from `null` or `undefined`.
-            flatMap(current, (p) =>
-              isNullish(p) ? UNDEFINED : readProperty(p, segment),
-            );
+          : segment.startsWith("()")
+            ? // A modeled array method: nothing reachable, unless it's
+              // some other object's method.
+              flatMap(current, (p) =>
+                isArrayValue(p) || typeof p === "string" ? possible() : UNKNOWN,
+              )
+            : // Nothing is reachable from `null` or `undefined`.
+              flatMap(current, (p) =>
+                isNullish(p) ? UNDEFINED : readProperty(p, segment),
+              );
     if (current === UNKNOWN) return true;
   }
   // A store's value already counts every write anyone can make to it.
@@ -566,8 +575,23 @@ function whyUnknown(
         ? `\`${node.name}\`: ${why}`
         : `\`${node.name}\` ${NESTED_REASONS[nested.kind] ?? "is declared in a nested scope"}`;
     }
-    case "CallExpression":
+    case "CallExpression": {
+      const { callee } = node;
+      // A modeled built-in is unknown for what it reads.
+      const read = builtinCall(node, scope)
+        ? node.arguments
+        : callee.type === "MemberExpression" &&
+            !callee.computed &&
+            callee.property.type === "Identifier" &&
+            ARRAY_METHODS.has(callee.property.name)
+          ? [callee.object]
+          : [];
+      for (const part of read) {
+        const why = inner(part);
+        if (why) return why;
+      }
       return `calls \`${snippet(node.callee, scope)}()\``;
+    }
     case "MemberExpression":
       return `reads \`${snippet(node, scope)}\``;
     case "TemplateLiteral":
@@ -772,6 +796,8 @@ function evaluateCall(
   scope: Scope,
 ): Value {
   const { callee, arguments: args } = node;
+  const builtin = builtinCall(node, scope);
+  if (builtin) return evaluateBuiltin(node, builtin, scope);
   if (
     callee.type !== "Identifier" ||
     scope.model.unknownNames.has(callee.name) ||
@@ -809,6 +835,219 @@ function evaluateCall(
     scope,
     createScope(helper.model, newComponentUsage(), () => UNKNOWN),
   );
+}
+
+const MATH = new Map<string, (...numbers: number[]) => number>([
+  ["abs", Math.abs],
+  ["ceil", Math.ceil],
+  ["floor", Math.floor],
+  ["max", Math.max],
+  ["min", Math.min],
+  ["round", Math.round],
+  ["sign", Math.sign],
+  ["trunc", Math.trunc],
+]);
+
+type Builtin =
+  | { kind: "isArray" | "math"; name: string }
+  | { kind: "includes" | "some" | "every"; arrays: readonly Primitive[] };
+
+const isArrayValue = (p: Primitive): boolean =>
+  p === EMPTY_ARRAY || (isShape(p) && p.kind === "array");
+
+/**
+ * The built-in `node` calls, if it's one the evaluator models: `Array.isArray`,
+ * `Math.round` and the like, or `includes`, `some` and `every` on what's
+ * only ever arrays or strings (`some` and `every` with a callback written
+ * inline that changes nothing). Then calling it runs nothing else.
+ */
+export function builtinCall(
+  node: Extract<Node, { type: "CallExpression" }>,
+  scope: Scope,
+): Builtin | undefined {
+  const { callee } = node;
+  if (
+    callee.type !== "MemberExpression" ||
+    callee.computed ||
+    callee.optional ||
+    callee.property.type !== "Identifier" ||
+    node.arguments.some((argument) => argument.type === "SpreadElement")
+  ) {
+    return undefined;
+  }
+  const name = callee.property.name;
+  const { object } = callee;
+  if (object.type === "Identifier") {
+    // A global, not a name the component declares or imports.
+    const global = !scope.model.scopes.bindingOf(object);
+    if (global && object.name === "Array" && name === "isArray") {
+      return { kind: "isArray", name };
+    }
+    if (global && object.name === "Math" && MATH.has(name)) {
+      return { kind: "math", name };
+    }
+  }
+  if (!ARRAY_METHODS.has(name)) return undefined;
+  if (object.type === "Super" || node.arguments.length !== 1) return undefined;
+  if (name !== "includes" && !inertCallback(node.arguments[0])) {
+    return undefined;
+  }
+  const receiver = evaluate(object, scope);
+  if (
+    receiver === UNKNOWN ||
+    ![...receiver].every(
+      (p) => isArrayValue(p) || (name === "includes" && typeof p === "string"),
+    )
+  ) {
+    return undefined;
+  }
+  return {
+    kind: name as "includes" | "some" | "every",
+    arrays: [...receiver],
+  };
+}
+
+function evaluateBuiltin(
+  node: Extract<Node, { type: "CallExpression" }>,
+  builtin: Builtin,
+  scope: Scope,
+): Value {
+  const args = node.arguments as Expression[];
+  switch (builtin.kind) {
+    case "isArray": {
+      const value = args[0] ? evaluate(args[0], scope) : UNDEFINED;
+      // Some object: an array or not.
+      return flatMap(value, (p) =>
+        isArrayValue(p)
+          ? possible(true)
+          : p === OBJECT
+            ? BOOLEAN
+            : possible(false),
+      );
+    }
+    case "math":
+      return mathValue(
+        MATH.get(builtin.name)!,
+        args.map((a) => evaluate(a, scope)),
+      );
+    case "includes": {
+      const needle = evaluate(args[0], scope);
+      if (needle === UNKNOWN) return UNKNOWN;
+      let result: Value = possible();
+      for (const p of builtin.arrays) {
+        result = join(
+          result,
+          typeof p === "string"
+            ? stringIncludes(p, needle)
+            : arrayIncludes(elementsOf(p), needle),
+        );
+      }
+      return result;
+    }
+    case "some":
+    case "every": {
+      const fn = args[0] as FunctionNode;
+      const body = callbackBody(fn)!;
+      const [param] = fn.params;
+      const wanted = builtin.kind === "some" ? "truthy" : "falsy";
+      let result: Value = possible();
+      for (const p of builtin.arrays) {
+        let found = false;
+        let unsure = false;
+        for (const element of elementsOf(p)) {
+          const truth = withLocals(scope, param, element, () =>
+            truthOf(evaluate(body, scope)),
+          );
+          if (truth === wanted) found = true;
+          else if (truth === "either") unsure = true;
+        }
+        // `some` is true once one is truthy; `every` false once one is falsy.
+        result = join(
+          result,
+          found
+            ? possible(builtin.kind === "some")
+            : unsure
+              ? BOOLEAN
+              : possible(builtin.kind === "every"),
+        );
+      }
+      return result;
+    }
+  }
+}
+
+function elementsOf(p: Primitive): readonly Value[] {
+  return isShape(p) && p.kind === "array" ? p.elements : [];
+}
+
+/** Evaluates `run` with `param` bound to `value`. */
+function withLocals<T>(
+  scope: Scope,
+  param: Node | undefined,
+  value: Value,
+  run: () => T,
+): T {
+  const outer = scope.locals;
+  const locals = new Map(outer);
+  if (param) bindPattern(param, value, locals, scope);
+  scope.locals = locals;
+  try {
+    return run();
+  } finally {
+    scope.locals = outer;
+  }
+}
+
+const MAX_MATH_RESULTS = 32;
+
+function mathValue(
+  fn: (...numbers: number[]) => number,
+  values: Value[],
+): Value {
+  let combinations: number[][] = [[]];
+  for (const value of values) {
+    if (value === UNKNOWN) return UNKNOWN;
+    const next: number[][] = [];
+    for (const p of value) {
+      // Anything else is coerced first: not modeled.
+      if (typeof p !== "number") return UNKNOWN;
+      for (const combination of combinations) next.push([...combination, p]);
+    }
+    if (next.length > MAX_MATH_RESULTS) return UNKNOWN;
+    combinations = next;
+  }
+  return possible(...combinations.map((numbers) => fn(...numbers)));
+}
+
+function stringIncludes(text: string, needle: Value): Value {
+  return flatMap(needle, (q) =>
+    typeof q === "string" ? possible(text.includes(q)) : UNKNOWN,
+  );
+}
+
+/** `true` if one element is only `q`, `false` if none can be. */
+function arrayIncludes(elements: readonly Value[], needle: Value): Value {
+  return flatMap(needle, (q) => {
+    // Objects compare by identity, which values don't track.
+    if (isObject(q)) return BOOLEAN;
+    let maybe = false;
+    for (const element of elements) {
+      if (element === UNKNOWN) {
+        maybe = true;
+        continue;
+      }
+      const matches = [...element].filter(
+        (e) => !isObject(e) && sameValueZero(e, q),
+      );
+      if (matches.length === element.size) return possible(true);
+      if (matches.length > 0) maybe = true;
+    }
+    return maybe ? BOOLEAN : possible(false);
+  });
+}
+
+function sameValueZero(a: Primitive, b: Primitive): boolean {
+  return a === b || (Number.isNaN(a) && Number.isNaN(b));
 }
 
 /** A readable body: a prop default no site overrides, `const f = (…) => …`, or `function`. */

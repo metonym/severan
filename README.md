@@ -315,11 +315,11 @@ How much it saves depends on how a library is written. Gzipped client JS of a re
 
 | Library                       | Style                      | Smaller by |
 | :---------------------------- | :------------------------- | :--------- |
-| flowbite-svelte               | Tailwind variants          | 37.2%      |
+| flowbite-svelte               | Tailwind variants          | 37.3%      |
 | carbon-components-svelte      | branches on props          | 33.5%      |
 | @sveltestrap/sveltestrap      | branches on props          | 22.0%      |
 | svelte-5-ui-lib               | Tailwind variants          | 18.8%      |
-| svelte-ux                     | Tailwind                   | 6.8%       |
+| svelte-ux                     | Tailwind                   | 7.4%       |
 | bits-ui                       | headless, state in classes | 2.2%       |
 | @skeletonlabs/skeleton-svelte | headless, state machines   | 0%         |
 
@@ -331,7 +331,7 @@ Tailwind's CSS for the same pages (v4, with each library's plugin), gzipped, sca
 | :-------------- | :--------- |
 | svelte-5-ui-lib | 71.7%      |
 | flowbite-svelte | 60.9%      |
-| svelte-ux       | 35.3%      |
+| svelte-ux       | 35.5%      |
 
 The libraries' own stylesheets for the same pages, gzipped, with `styles` in their spec ([Stylesheets](#stylesheets)):
 

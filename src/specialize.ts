@@ -17,6 +17,7 @@ import { componentMaps, selectedKeys } from "./component-maps";
 import { isTopLevel } from "./component-model";
 import {
   bindEach,
+  builtinCall,
   evaluate,
   isPropsObject,
   type Scope,
@@ -143,6 +144,19 @@ function literalText(value: Value): string | null {
   return JSON.stringify(p);
 }
 
+function shortCircuits(
+  node: Extract<Node, { type: "LogicalExpression" }>,
+  scope: Scope,
+): boolean {
+  const left = evaluate(node.left, scope);
+  const truth = truthOf(left);
+  return node.operator === "&&"
+    ? truth === "falsy"
+    : node.operator === "||"
+      ? truth === "truthy"
+      : isNeverNullish(left);
+}
+
 /**
  * Whether removing `node` is safe. Calls and member reads may run code
  * (getters), except, given `scope`, the few the evaluator models.
@@ -159,8 +173,14 @@ function isPure(node: Node, scope?: Scope): boolean {
     case "UnaryExpression":
       return node.operator !== "delete" && isPure(node.argument, scope);
     case "BinaryExpression":
-    case "LogicalExpression":
       return isPure(node.left, scope) && isPure(node.right, scope);
+    case "LogicalExpression":
+      return (
+        isPure(node.left, scope) &&
+        // A left side that decides it: the right side never runs.
+        ((scope !== undefined && shortCircuits(node, scope)) ||
+          isPure(node.right, scope))
+      );
     case "ConditionalExpression":
       return (
         isPure(node.test, scope) &&
@@ -217,15 +237,25 @@ function isPure(node: Node, scope?: Scope): boolean {
         isPure(node.object, scope)
       );
     }
-    case "CallExpression":
-      return (
-        node.callee.type === "Identifier" &&
-        ["Boolean", "String", "getContext"].includes(node.callee.name) &&
-        !scope.model.unknownNames.has(node.callee.name) &&
-        node.arguments.every(
-          (a) => a.type !== "SpreadElement" && isPure(a, scope),
-        )
+    case "CallExpression": {
+      const args = node.arguments.every(
+        (a) => a.type !== "SpreadElement" && isPure(a, scope),
       );
+      const { callee } = node;
+      if (callee.type === "MemberExpression") {
+        return (
+          args &&
+          builtinCall(node, scope) !== undefined &&
+          isPure(callee.object, scope)
+        );
+      }
+      return (
+        callee.type === "Identifier" &&
+        ["Boolean", "String", "getContext"].includes(callee.name) &&
+        !scope.model.unknownNames.has(callee.name) &&
+        args
+      );
+    }
     default:
       return false;
   }
