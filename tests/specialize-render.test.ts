@@ -1457,3 +1457,121 @@ describe("component maps", () => {
     expect(code === "" || code.includes('{ a: A, b: B, "c-c": C }')).toBe(true);
   });
 });
+
+// A `{@const}` is read where it's in scope, with the `{#each}` items
+// around it: its value folds where it only depends on props, and a child
+// given it keeps only those values.
+
+const CONST_LIBRARY = {
+  "Row.svelte": `<script>
+  export let dense = false;
+</script>
+{#if dense}<p class="dense">dense</p>{:else}<p class="loose">loose</p>{/if}`,
+  "List.svelte": `<script>
+  import Row from "./Row.svelte";
+  export let size = "md";
+  export let items = [];
+  export let promise = Promise.resolve(1);
+</script>
+{#each items as item}
+  {@const compact = size === "sm"}
+  {@const label = compact ? "s" : item.label}
+  {#if compact}<small>{item.label}</small>{:else}<b>{label}</b>{/if}
+  <Row dense={compact} />
+{/each}
+{#if items.length > 0}
+  {@const wide = size === "lg"}
+  {#if wide}<i>wide</i>{:else}<u>narrow</u>{/if}
+{/if}
+{#await promise then value}
+  {@const big = size !== "sm"}
+  {#if big}<em>{value}</em>{:else}<s>{value}</s>{/if}
+{/await}`,
+  "Mixed.svelte": `<script>
+  import Row from "./Row.svelte";
+  export let size = "md";
+  export let items = [];
+</script>
+{#each items as item}
+  {@const compact = size === "sm"}
+  {@const dense = compact || item.dense}
+  <Row {dense} />
+{/each}`,
+  "Snippets.svelte": `<script>
+  let { size = "md", children } = $props();
+</script>
+{#snippet row(n)}
+  {@const compact = size === "sm"}
+  {#if compact}<small>{n}</small>{:else}<b>{n}</b>{/if}
+{/snippet}
+{@render row(1)}
+{#if children}{@render children()}{/if}`,
+};
+
+const constTag = (markup: string, script = ""): LibraryApp => ({
+  lib: CONST_LIBRARY,
+  app: appRendering(markup, script),
+});
+
+const CONST_TAGS: Record<string, LibraryApp> = {
+  "a size every site passes": constTag(
+    '<List size="md" items={[{ label: "a" }, { label: "b" }]} />',
+  ),
+  "sizes that differ by site": constTag(
+    '<List size="sm" items={[{ label: "a" }]} /><List size="lg" items={[{ label: "b" }]} />',
+  ),
+  "an item the app reads at runtime": constTag(
+    '<Mixed size="md" items={data} /><Mixed size="sm" items={data} />',
+    'const data = JSON.parse(\'[{"dense": true}, {"dense": false}]\');',
+  ),
+  "a snippet's `{@const}`": constTag('<Snippets size="sm" />'),
+  "a `{@const}` in component content": constTag(
+    '<Snippets size="md">{@const label = "x"}<i>{label}</i></Snippets>',
+  ),
+};
+
+describe("values `{@const}` declares", () => {
+  const cases = Object.keys(CONST_TAGS).flatMap((name): [string, boolean][] => [
+    [name, false],
+    [name, true],
+  ]);
+  test.each(cases)("%s (unwrap: %p)", async (name, unwrap) => {
+    const { before, after } = await renderSpecialized(CONST_TAGS[name], {
+      unwrap,
+    });
+    expect(after).toBe(before);
+  });
+
+  test("fold where they only depend on props", async () => {
+    const sources = await specializedLibrary(
+      constTag('<List size="md" items={[{ label: "a" }]} />'),
+    );
+    const list = sources["List.svelte"];
+    expect(list).not.toContain("<small>");
+    expect(list).not.toContain("<i>wide</i>");
+    expect(list).not.toContain("<s>{value}</s>");
+    // With `compact` false, `label` is the item's: known here too.
+    expect(list).toContain('<b>{"a"}</b>');
+    expect(sources["Row.svelte"]).not.toContain("dense</p>");
+  });
+
+  test("fold in a snippet", async () => {
+    const sources = await specializedLibrary(
+      constTag('<Snippets size="md" />'),
+    );
+    expect(sources["Snippets.svelte"]).not.toContain("<small>");
+  });
+
+  test("stay unknown where they read app data", async () => {
+    const sources = await specializedLibrary(
+      constTag(
+        '<Mixed size="md" items={data} />',
+        "const data = JSON.parse('[]');",
+      ),
+    );
+    // Row keeps both branches, unless it isn't rewritten at all.
+    const row = sources["Row.svelte"] ?? CONST_LIBRARY["Row.svelte"];
+    expect(row).toContain("dense</p>");
+    expect(row).toContain("loose</p>");
+  });
+});

@@ -172,6 +172,31 @@ describe("specializeComponent", () => {
     expect(code).toContain("{#if true}{@const x = 1}");
   });
 
+  test("folds what reads a `{@const}` of props", () => {
+    const code = specializeWith(
+      `<script>export let size = "md"; export let items = [];</script>
+{#each items as item}{@const compact = size === "sm"}{#if compact}<small>{item}</small>{:else}<b>{item}</b>{/if}{/each}`,
+      new Map([
+        ["size", possible("md")],
+        ["items", UNKNOWN],
+      ]),
+    );
+    expect(code).not.toContain("<small>");
+    expect(code).toContain("<b>{item}</b>");
+  });
+
+  test("keeps a `{@const}` object something mutates", () => {
+    const code = specializeWith(
+      `<script>export let size = "md"; export let items = [];</script>
+{#each items as item}{@const o = { s: size }}<button on:click={() => (o.s = "x")}>{#if o.s === "md"}a{:else}b{/if}</button>{/each}`,
+      new Map([
+        ["size", possible("md")],
+        ["items", UNKNOWN],
+      ]),
+    );
+    expect(code).toContain('{#if o.s === "md"}');
+  });
+
   test("if statements keep only the branch that can run", () => {
     const code = specialize(
       `<script>

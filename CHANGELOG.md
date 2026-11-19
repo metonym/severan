@@ -19,6 +19,12 @@
 - `severan/internal/analysis` exports `libraryStylePruner`, for a pruner
   from an analysis made without `specializeFiles` (carbon-preprocess-svelte's
   per-module `createUsageCollector`).
+- A name `{@const}` declares is read as its value where it's in scope, with
+  the `{#each}` items around it, in `{#each}`, `{#if}`, `{:then}`, snippets
+  and component content. An `{#if}` on one that depends only on props keeps
+  only the branch that can render, and a child component given it keeps only
+  those values. Destructured names stay unknown. Carbon's example: 256 bytes
+  less JS.
 
 ## 0.7.2
 
