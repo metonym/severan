@@ -1,5 +1,6 @@
 import type { Binding } from "sveast/scope";
 import {
+  type AST,
   type Expression,
   type Identifier,
   skipTypeWrappers,
@@ -100,40 +101,130 @@ function evaluateIdentifier(node: Identifier, scope: Scope): Value {
   if (!nested) return lookup(node.name, scope);
   // `$item` reads a store a nested binding holds: unknown.
   if (nested.name !== node.name) return UNKNOWN;
-  return scope.locals.get(nested) ?? constTagValue(nested, scope);
+  return scope.locals.get(nested) ?? nestedValue(nested, scope);
 }
 
-/** The `{@const}` that declares `binding`, if it does. */
-function constTag(
+/** Where a nested name's value comes from: what `pattern` destructures. */
+type NestedSource = { pattern: Node; value: (scope: Scope) => Value };
+
+/**
+ * A `{@const}`'s initializer, an `{#each}` item, or a snippet parameter's
+ * arguments, where every use of the snippet calls it (see `snippetCalls`).
+ */
+function nestedSource(
   binding: Binding,
-): { id: Node; init: Expression } | undefined {
+  model: ComponentModel,
+): NestedSource | undefined {
   const { declaration } = binding;
-  return binding.kind === "const-tag" &&
-    declaration.type === "VariableDeclarator" &&
-    declaration.init
-    ? { id: declaration.id, init: declaration.init }
-    : undefined;
+  switch (declaration.type) {
+    case "VariableDeclarator": {
+      const { init } = declaration;
+      return binding.kind === "const-tag" && init
+        ? { pattern: declaration.id, value: (scope) => evaluate(init, scope) }
+        : undefined;
+    }
+    case "EachBlock": {
+      const { context, expression } = declaration;
+      return binding.kind === "each" && context
+        ? {
+            pattern: context,
+            value: (scope) => itemsOf(evaluate(expression, scope)),
+          }
+        : undefined;
+    }
+    case "SnippetBlock": {
+      if (binding.kind !== "snippet-param" || !binding.node) return undefined;
+      const { node } = binding;
+      const index = declaration.parameters.findIndex(
+        (parameter) =>
+          parameter.start <= node.start && node.end <= parameter.end,
+      );
+      const calls = snippetCalls(declaration, model);
+      if (index < 0 || !calls) return undefined;
+      return {
+        pattern: declaration.parameters[index],
+        value: (scope) => {
+          let value: Value = possible();
+          for (const call of calls) {
+            const argument = call.arguments[index];
+            if (argument?.type === "SpreadElement") return UNKNOWN;
+            value = join(
+              value,
+              argument ? evaluate(argument, scope) : UNDEFINED,
+            );
+            if (value === UNKNOWN) return UNKNOWN;
+          }
+          return value;
+        },
+      };
+    }
+    default:
+      return undefined;
+  }
+}
+
+type CallNode = Extract<Node, { type: "CallExpression" }>;
+
+const SNIPPET_CALLS = new WeakMap<
+  AST.SnippetBlock,
+  readonly CallNode[] | null
+>();
+
+/**
+ * Every call of `snippet` (`{@render row(x)}`), or `null` if anything else
+ * uses it, such as a component it's passed to, by name or as content.
+ */
+function snippetCalls(
+  snippet: AST.SnippetBlock,
+  model: ComponentModel,
+): readonly CallNode[] | null {
+  const cached = SNIPPET_CALLS.get(snippet);
+  if (cached !== undefined) return cached;
+  const binding = model.scopes.bindingOf(snippet.expression);
+  const owner = binding?.scope.node?.type;
+  let calls: CallNode[] | null = [];
+  if (
+    !binding ||
+    owner === undefined ||
+    owner === "Component" ||
+    owner.startsWith("Svelte")
+  ) {
+    calls = null;
+  } else {
+    for (const { node, parent } of binding.references) {
+      if (parent.type !== "CallExpression" || parent.callee !== node) {
+        calls = null;
+        break;
+      }
+      calls.push(parent);
+    }
+  }
+  SNIPPET_CALLS.set(snippet, calls);
+  return calls;
 }
 
 /**
- * A `{@const}` read where it's in scope: its block's `{#each}` items are
- * bound then too, and other names in its initializer don't change between
- * the two places. Not memoized, since it depends on those items.
+ * A nested name where the walk hasn't bound it: worked out from where
+ * it's declared, with the names around that also read where they're
+ * declared. Not memoized, since the walk's bindings can differ.
  */
-function constTagValue(binding: Binding, scope: Scope): Value {
-  const tag = constTag(binding);
+function nestedValue(binding: Binding, scope: Scope): Value {
+  const source = nestedSource(binding, scope.model);
   // Names can't start with `#`, so this can't collide with one.
-  const key = `#const:${binding.node?.start}`;
-  if (!tag || scope.pending.has(key)) return UNKNOWN;
+  const key = `#nested:${binding.node?.start}`;
+  if (!source || scope.pending.has(key)) return UNKNOWN;
   scope.pending.add(key);
   try {
-    let value = evaluate(tag.init, scope);
-    if (tag.id !== binding.node) {
+    let value = source.value(scope);
+    if (source.pattern !== binding.node) {
       const parts = new Map<Binding, Value>();
-      bindPattern(tag.id, value, parts, scope);
+      bindPattern(source.pattern, value, parts, scope);
       value = parts.get(binding) ?? UNKNOWN;
     }
-    return keepIfContained(value, binding.name, scope.model);
+    // An item's escapes are its array's (see `findEscapes`).
+    return binding.kind === "each"
+      ? value
+      : keepIfContained(value, binding.name, scope.model);
   } finally {
     scope.pending.delete(key);
   }
@@ -465,8 +556,12 @@ function whyUnknown(
     case "Identifier": {
       const nested = nestedBinding(node, scope);
       if (!nested) return whyNameUnknown(node.name, scope, depth);
-      const tag = nested.name === node.name && constTag(nested);
-      const why = tag && inner(tag.init);
+      const init =
+        nested.name === node.name &&
+        nested.kind === "const-tag" &&
+        nested.declaration.type === "VariableDeclarator" &&
+        nested.declaration.init;
+      const why = init && inner(init);
       return why
         ? `\`${node.name}\`: ${why}`
         : `\`${node.name}\` ${NESTED_REASONS[nested.kind] ?? "is declared in a nested scope"}`;

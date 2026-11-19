@@ -1444,6 +1444,7 @@ describe("component maps", () => {
       'const icons = { "c-c": C }',
     ],
     ['<Dotted kind="a" />', "Dotted.svelte", "const icons = { a: A, b: B }"],
+    ["<EachIcon kinds={['b']} />", "EachIcon.svelte", "const icons = { b: B }"],
   ])("%s keeps only what it selects", async (markup, file, map) => {
     expect(await mapOf(markup, file)).toContain(map);
   });
@@ -1451,7 +1452,6 @@ describe("component maps", () => {
   test.each([
     ["<Icon kind={k} />", "Icon.svelte"],
     ['<Leaks kind="b" />', "Leaks.svelte"],
-    ["<EachIcon kinds={['b']} />", "EachIcon.svelte"],
   ])("%s keeps every entry", async (markup, file) => {
     const code = await mapOf(markup, file);
     expect(code === "" || code.includes('{ a: A, b: B, "c-c": C }')).toBe(true);
@@ -1608,5 +1608,82 @@ describe("values `{@const}` declares", () => {
     const row = sources["Row.svelte"] ?? CONST_LIBRARY["Row.svelte"];
     expect(row).toContain("dense</p>");
     expect(row).toContain("loose</p>");
+  });
+});
+
+// A snippet parameter is what every call of the snippet passes it, when
+// nothing else uses the snippet: not a component it's handed to.
+
+const SNIPPET_LIBRARY = {
+  "Row.svelte": `<script>
+  let { dense = false } = $props();
+</script>
+{#if dense}<p class="dense">dense</p>{:else}<p class="loose">loose</p>{/if}`,
+  "Cell.svelte": `<script>
+  let { item, children } = $props();
+</script>
+<td>{@render children?.()}{@render item?.("cell")}</td>`,
+  "Table.svelte": `<script>
+  import Row from "./Row.svelte";
+  import Cell from "./Cell.svelte";
+  let { size = "md", rows = [] } = $props();
+</script>
+{#snippet line(s, { label } = {}, mark = "-")}
+  {#if s === "sm"}<small>{label}</small>{:else}<b>{label}</b>{/if}
+  {#if mark === "-"}<i>-</i>{:else}<u>{mark}</u>{/if}
+  <Row dense={s === "sm"} />
+{/snippet}
+{#snippet item(kind)}{#if kind === "cell"}<em>cell</em>{:else}<s>{kind}</s>{/if}{/snippet}
+{@render line(size)}
+{#each rows as row}{@render line?.(size, row)}{/each}
+<Cell {item} />
+<Cell>{#snippet item(kind)}{#if kind === "cell"}<em>inner</em>{:else}<s>inner</s>{/if}{/snippet}</Cell>`,
+};
+
+const snippetParams = (markup: string): LibraryApp => ({
+  lib: SNIPPET_LIBRARY,
+  app: appRendering(markup),
+});
+
+const SNIPPET_PARAMS: Record<string, LibraryApp> = {
+  "one size": snippetParams(
+    '<Table size="md" rows={[{ label: "a" }, { label: "b" }]} />',
+  ),
+  "sizes that differ by site": snippetParams(
+    '<Table size="sm" rows={[{ label: "a" }]} /><Table size="lg" />',
+  ),
+  "no rows": snippetParams("<Table />"),
+};
+
+describe("snippet parameters", () => {
+  const cases = Object.keys(SNIPPET_PARAMS).flatMap(
+    (name): [string, boolean][] => [
+      [name, false],
+      [name, true],
+    ],
+  );
+  test.each(cases)("%s (unwrap: %p)", async (name, unwrap) => {
+    const { before, after } = await renderSpecialized(SNIPPET_PARAMS[name], {
+      unwrap,
+    });
+    expect(after).toBe(before);
+  });
+
+  test("fold to what every call passes", async () => {
+    const sources = await specializedLibrary(
+      snippetParams('<Table size="md" />'),
+    );
+    const table = sources["Table.svelte"];
+    expect(table).not.toContain("<small>");
+    expect(table).not.toContain("<u>{mark}</u>");
+    expect(sources["Row.svelte"]).not.toContain('class="dense"');
+  });
+
+  test("stay unknown in a snippet a component is given", async () => {
+    const table = (
+      await specializedLibrary(snippetParams('<Table size="md" />'))
+    )["Table.svelte"];
+    expect(table).toContain("<s>{kind}</s>");
+    expect(table).toContain("<s>inner</s>");
   });
 });

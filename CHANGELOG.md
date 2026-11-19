@@ -28,6 +28,12 @@
   arrays and defaults (`{#each items as { label, tags: [first] = [] }}`).
   Only a rest element's names stay unknown, and handing on a name
   destructured from an item no longer makes the whole item unknown.
+- A snippet parameter is read as what every call of the snippet passes it
+  (`{@render row(size)}`), when nothing else uses the snippet: not a
+  component it's handed to, by name or as content. A `{@const}` or
+  `{#each}` item is also read outside the walk that binds it, such as
+  where a snippet is called, or in a component map's key
+  (`{#each kinds as k}<svelte:component this={icons[k]} />`).
 
 **Fixes**
 
