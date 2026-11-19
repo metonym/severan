@@ -99,9 +99,37 @@ function evaluateIdentifier(node: Identifier, scope: Scope): Value {
   const nested = nestedBinding(node, scope);
   if (!nested) return lookup(node.name, scope);
   // `$item` reads a store a nested binding holds: unknown.
-  return nested.name === node.name
-    ? (scope.locals.get(nested) ?? UNKNOWN)
-    : UNKNOWN;
+  if (nested.name !== node.name) return UNKNOWN;
+  return scope.locals.get(nested) ?? constTagValue(nested, scope);
+}
+
+/** `{@const name = init}`'s `init`; destructured names stay unknown. */
+function constTagInit(binding: Binding): Expression | undefined {
+  const { declaration } = binding;
+  return binding.kind === "const-tag" &&
+    declaration.type === "VariableDeclarator" &&
+    declaration.id === binding.node &&
+    declaration.init
+    ? declaration.init
+    : undefined;
+}
+
+/**
+ * A `{@const}` read where it's in scope: its block's `{#each}` items are
+ * bound then too, and other names in its initializer don't change between
+ * the two places. Not memoized, since it depends on those items.
+ */
+function constTagValue(binding: Binding, scope: Scope): Value {
+  const init = constTagInit(binding);
+  // Names can't start with `#`, so this can't collide with one.
+  const key = `#const:${binding.node?.start}`;
+  if (!init || scope.pending.has(key)) return UNKNOWN;
+  scope.pending.add(key);
+  try {
+    return keepIfContained(evaluate(init, scope), binding.name, scope.model);
+  } finally {
+    scope.pending.delete(key);
+  }
 }
 
 function lookup(name: string, scope: Scope): Value {
@@ -393,9 +421,12 @@ function whyUnknown(
   switch (node.type) {
     case "Identifier": {
       const nested = nestedBinding(node, scope);
-      return nested
-        ? `\`${node.name}\` ${NESTED_REASONS[nested.kind] ?? "is declared in a nested scope"}`
-        : whyNameUnknown(node.name, scope, depth);
+      if (!nested) return whyNameUnknown(node.name, scope, depth);
+      const init = nested.name === node.name && constTagInit(nested);
+      const why = init && inner(init);
+      return why
+        ? `\`${node.name}\`: ${why}`
+        : `\`${node.name}\` ${NESTED_REASONS[nested.kind] ?? "is declared in a nested scope"}`;
     }
     case "CallExpression":
       return `calls \`${snippet(node.callee, scope)}()\``;
