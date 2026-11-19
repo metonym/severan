@@ -7,8 +7,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
-import type { SeveranOptions } from "../src/optimizer";
-import { severan } from "../src/vite";
+import type { SveltePruneOptions } from "../src/optimizer";
+import { sveltePrune } from "../src/vite";
 import { CARBON } from "./helpers/carbon";
 import { createFakeProject } from "./helpers/fake-project";
 import { installTableLibrary, TVLIB } from "./helpers/tailwind-variants";
@@ -73,7 +73,7 @@ const MISSED_TOOLBAR =
   /before seeing lib\/Toolbar\.ts, which imports them\. Add those files to `content`/;
 const MISSED_MARKDOWN = /before seeing lib\/Toolbar\.md, which imports them/;
 const ANALYSIS_FAILED =
-  /severan could not analyze this build .*components were bundled unchanged/;
+  /svelte-prune could not analyze this build .*components were bundled unchanged/;
 const VIRTUAL_MODULE =
   /can't analyze virtual:toolbar, which imports Carbon components but has no file on disk/;
 const VIRTUAL_MODULES =
@@ -96,19 +96,23 @@ const TABLE_IMPORTED =
 /** A project with `src/App.svelte` and Carbon linked into its `node_modules`. */
 function setUp(
   app: string,
-  options?: SeveranOptions,
-  names?: Parameters<typeof severan>[2],
+  options?: SveltePruneOptions,
+  names?: Parameters<typeof sveltePrune>[2],
 ) {
   const project = createFakeProject();
   const carbon = project.linkCarbon();
   mkdirSync(path.join(project.root, "src"));
   writeFileSync(path.join(project.root, "src", "App.svelte"), app);
-  const plugin = severan(CARBON, options, names) as unknown as ResolvedPlugin;
+  const plugin = sveltePrune(
+    CARBON,
+    options,
+    names,
+  ) as unknown as ResolvedPlugin;
   plugin.configResolved({ root: project.root });
   return { project, carbon, plugin };
 }
 
-describe("severan/vite with `styles`", () => {
+describe("svelte-prune/vite with `styles`", () => {
   const STYLED = {
     ...CARBON,
     styles: { stylesheets: ["carbon-components-svelte/css/white.css"] },
@@ -139,7 +143,7 @@ describe("severan/vite with `styles`", () => {
       path.join(project.root, "src", "App.svelte"),
       `<script>${IMPORT_BUTTON}</script>\n<Button kind="tertiary">Save</Button>`,
     );
-    const plugin = severan(STYLED) as unknown as ResolvedPlugin;
+    const plugin = sveltePrune(STYLED) as unknown as ResolvedPlugin;
     plugin.configResolved({ root: project.root });
     try {
       const ctx = context();
@@ -171,7 +175,7 @@ describe("severan/vite with `styles`", () => {
     } finally {
       project.dispose();
     }
-    const served = severan(STYLED) as unknown as ResolvedPlugin;
+    const served = sveltePrune(STYLED) as unknown as ResolvedPlugin;
     served.configResolved({ root: process.cwd(), command: "serve" });
     const bundle = bundleOf(CSS);
     served.generateBundle.handler.call(context(), {}, bundle);
@@ -179,7 +183,7 @@ describe("severan/vite with `styles`", () => {
   });
 });
 
-describe("severan/vite", () => {
+describe("svelte-prune/vite", () => {
   test("runs before Svelte, rewriting production builds only", async () => {
     const { project, carbon, plugin } = setUp(
       `<script>${IMPORT_BUTTON}</script>\n<Button kind="tertiary">Save</Button>`,
@@ -193,9 +197,9 @@ describe("severan/vite", () => {
         plugin.load(path.join(carbon, "src/Button/Button.svelte")),
       ).toBeUndefined();
       // Without Tailwind, the dev server writes nothing.
-      expect(existsSync(path.join(project.root, "node_modules/.severan"))).toBe(
-        false,
-      );
+      expect(
+        existsSync(path.join(project.root, "node_modules/.svelte-prune")),
+      ).toBe(false);
     } finally {
       project.dispose();
     }
@@ -286,7 +290,7 @@ describe("severan/vite", () => {
     try {
       await plugin.buildStart.call(context());
       const report = log.mock.calls.map(([line]) => line).join("\n");
-      expect(report).toContain("severan report");
+      expect(report).toContain("svelte-prune report");
       expect(report).toMatch(BUTTON_REPORT);
       expect(report).toContain('kind             "tertiary"');
     } finally {
@@ -309,7 +313,7 @@ describe("severan/vite", () => {
     try {
       await plugin.buildStart.call(context());
       const report = log.mock.calls.map(([line]) => line).join("\n");
-      expect(report).toContain("severan optimizeComponents report");
+      expect(report).toContain("svelte-prune optimizeComponents report");
     } finally {
       log.mockRestore();
       project.dispose();
@@ -679,7 +683,7 @@ describe("severan/vite", () => {
       path.join(project.root, "src", "App.svelte"),
       `<script>${IMPORT_BUTTON}</script>\n<Button />`,
     );
-    const plugin = severan(CARBON) as unknown as ResolvedPlugin;
+    const plugin = sveltePrune(CARBON) as unknown as ResolvedPlugin;
     plugin.configResolved({ root: project.root });
     try {
       const ctx = context();
@@ -704,7 +708,7 @@ describe("severan/vite", () => {
         app,
         `<script>import { Button } from "tvlib";</script>\n<Button color="red" />`,
       );
-      const plugin = severan(TVLIB) as unknown as ResolvedPlugin;
+      const plugin = sveltePrune(TVLIB) as unknown as ResolvedPlugin;
       plugin.configResolved({ root: project.root });
       const ctx = context();
       await plugin.buildStart.call(ctx);
@@ -748,12 +752,15 @@ describe("severan/vite", () => {
         path.join(project.root, "src", "App.svelte"),
         `<script>import { Button } from "tvlib";</script>\n<Button color="red" />`,
       );
-      const plugin = severan(TVLIB, {
+      const plugin = sveltePrune(TVLIB, {
         silent: true,
       }) as unknown as ResolvedPlugin;
       plugin.configResolved({ root: project.root, command });
       await plugin.buildStart.call(context());
-      const written = path.join(project.root, "node_modules/.severan/tvlib");
+      const written = path.join(
+        project.root,
+        "node_modules/.svelte-prune/tvlib",
+      );
       const theme = readFileSync(path.join(written, "theme.js"), "utf8");
       expect(theme).toContain("bg-red");
       expect(existsSync(path.join(written, "Button.svelte"))).toBe(true);
@@ -782,7 +789,7 @@ describe("severan/vite", () => {
           path.join(project.root, "src", "App.svelte"),
           `<script>import { Button } from "tvlib";</script>\n<Button color="red" />`,
         );
-        const plugin = severan(
+        const plugin = sveltePrune(
           { ...TVLIB, tailwind: undefined },
           { silent: true },
         ) as unknown as ResolvedPlugin;
@@ -790,7 +797,7 @@ describe("severan/vite", () => {
         plugin.configResolved({ root: project.root, command });
         await plugin.buildStart.call(context());
         expect(
-          existsSync(path.join(project.root, "node_modules/.severan")),
+          existsSync(path.join(project.root, "node_modules/.svelte-prune")),
         ).toBe(false);
       } finally {
         project.dispose();
@@ -807,12 +814,15 @@ describe("severan/vite", () => {
         path.join(project.root, "src", "App.svelte"),
         `<script>import { Button } from "tvlib";</script>\n<Button color="red" />`,
       );
-      const plugin = severan(TVLIB, {
+      const plugin = sveltePrune(TVLIB, {
         silent: true,
       }) as unknown as ResolvedPlugin;
       plugin.configResolved({ root: project.root, command: "build" });
       await plugin.buildStart.call(context());
-      const written = path.join(project.root, "node_modules/.severan/tvlib");
+      const written = path.join(
+        project.root,
+        "node_modules/.svelte-prune/tvlib",
+      );
       rmSync(written, { recursive: true });
       await plugin.buildStart.call(context());
       expect(readFileSync(path.join(written, "theme.js"), "utf8")).toContain(

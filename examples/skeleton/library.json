@@ -5,6 +5,6 @@
   "componentPackages": [],
   "contextKeyPrefix": "skeleton:",
   "label": "Skeleton",
-  "tool": "severan",
+  "tool": "svelte-prune",
   "tailwind": true
 }

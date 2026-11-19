@@ -5,6 +5,6 @@
   "componentPackages": [],
   "contextKeyPrefix": "s5ui:",
   "label": "svelte-5-ui-lib",
-  "tool": "severan",
+  "tool": "svelte-prune",
   "tailwind": true
 }

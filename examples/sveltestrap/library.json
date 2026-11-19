@@ -5,7 +5,7 @@
   "componentPackages": [],
   "contextKeyPrefix": "sveltestrap:",
   "label": "Sveltestrap",
-  "tool": "severan",
+  "tool": "svelte-prune",
   "styles": {
     "stylesheets": ["bootstrap/dist/css/bootstrap.min.css"]
   }

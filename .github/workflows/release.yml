@@ -35,12 +35,12 @@ jobs:
         run: npm publish --provenance --access public
 
       # npm can serve a version's metadata minutes before its tarball.
-      # Green means `bun add severan@<version>` works: create the GitHub
+      # Green means `bun add svelte-prune@<version>` works: create the GitHub
       # release and bump dependents only after this.
       - name: Wait for the tarball
         run: |
           version=$(jq -r .version package.json)
-          url="https://registry.npmjs.org/severan/-/severan-$version.tgz"
+          url="https://registry.npmjs.org/svelte-prune/-/svelte-prune-$version.tgz"
           for i in $(seq 1 60); do
             status=$(curl -s -o /dev/null -w '%{http_code}' "$url")
             if [ "$status" = 200 ]; then echo "$url is live"; exit 0; fi

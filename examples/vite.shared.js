@@ -3,7 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
-import { severan } from "../dist/vite.js";
+import { sveltePrune } from "../dist/vite.js";
 
 const EXAMPLES = import.meta.dirname;
 
@@ -31,29 +31,29 @@ function cssHash({ filename, css, hash }) {
 }
 
 /**
- * One example's Vite config. `SEVERAN=1` adds severan (the built package in
+ * One example's Vite config. `SVELTE_PRUNE=1` adds svelte-prune (the built package in
  * `../dist`) and, with Tailwind, swaps `src/app.css` for
- * `src/app.severan.css`, which scans `node_modules/.severan` instead of the
+ * `src/app.svelte-prune.css`, which scans `node_modules/.svelte-prune` instead of the
  * library: the one line an app changes. `OUT` is the output directory.
  */
 export async function exampleConfig(dir, { plugins = [] } = {}) {
   const library = await loadLibrary(dir);
-  const optimized = process.env.SEVERAN === "1";
-  const severanCss = path.join(dir, "src/app.severan.css");
-  const tailwind = existsSync(severanCss);
+  const optimized = process.env.SVELTE_PRUNE === "1";
+  const prunedCss = path.join(dir, "src/app.svelte-prune.css");
+  const tailwind = existsSync(prunedCss);
   return {
     root: dir,
     logLevel: "warn",
     plugins: [
       ...plugins,
-      ...(optimized ? [severan(library, { silent: true })] : []),
+      ...(optimized ? [sveltePrune(library, { silent: true })] : []),
       svelte({ compilerOptions: { cssHash } }),
       ...(tailwind ? [tailwindcss()] : []),
     ],
     resolve: {
       alias: {
         "~app.css":
-          optimized && tailwind ? severanCss : path.join(dir, "src/app.css"),
+          optimized && tailwind ? prunedCss : path.join(dir, "src/app.css"),
       },
     },
     build: {

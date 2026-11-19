@@ -3,7 +3,7 @@
 [lint]
 maxWarnings = 0
 # Fixtures are inputs the benchmarks read as written; each example's app
-# is the input severan rewrites.
+# is the input svelte-prune rewrites.
 ignorePatterns = ["bench/fixtures/**", "examples/*/src/**"]
 
 # ESLint and typescript-eslint recommended are on by default; these add the

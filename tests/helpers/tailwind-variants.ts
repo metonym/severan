@@ -75,7 +75,7 @@ export const TVLIB: LibrarySpec = {
   componentPackages: [],
   contextKeyPrefix: "tvlib:",
   label: "TvLib",
-  tool: "severan",
+  tool: "svelte-prune",
   tailwind: true,
 };
 

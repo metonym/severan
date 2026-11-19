@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "severan-examples",
+      "name": "svelte-prune-examples",
       "devDependencies": {
         "@layerstack/tailwind": "1.0.1",
         "@skeletonlabs/skeleton": "5.0.1",

@@ -1,6 +1,6 @@
 import type { ComponentOptimizer } from "./optimizer";
 
-const KEY = Symbol.for("severan.optimizers");
+const KEY = Symbol.for("svelte-prune.optimizers");
 
 /**
  * Optimizers by id: loader options must be plain data under Rspack, and
@@ -21,8 +21,8 @@ type LoaderContext = {
   callback(error: null, code: string, map?: unknown): void;
 };
 
-/** The pre-loader `SeveranPlugin` adds on `.svelte` files and the library's script modules: serves the ones it rewrote. */
-export default function severanLoader(
+/** The pre-loader `SveltePrunePlugin` adds on `.svelte` files and the library's script modules: serves the ones it rewrote. */
+export default function sveltePruneLoader(
   this: LoaderContext,
   source: string,
   map?: unknown,

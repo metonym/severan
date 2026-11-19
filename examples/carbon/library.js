@@ -12,7 +12,7 @@ export default {
   componentPackages: ["carbon-icons-svelte", "carbon-pictograms-svelte"],
   contextKeyPrefix: "carbon:",
   label: "Carbon",
-  tool: "severan",
+  tool: "svelte-prune",
   classTokens: {
     marker: "bx--",
     text: (text) => Array.from(text.matchAll(CLASS), ([token]) => `.${token}`),

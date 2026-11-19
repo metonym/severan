@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "severan",
+      "name": "svelte-prune",
       "devDependencies": {
         "@types/bun": "^1.4.4",
         "@types/jest": "^30.0.0",

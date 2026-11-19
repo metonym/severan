@@ -221,30 +221,30 @@ export type BrowserResult = {
   steps: number;
   identical: boolean;
   /** What differs, for the first step that does. */
-  firstDifference?: { step: string; original: string; severan: string };
+  firstDifference?: { step: string; original: string; pruned: string };
 };
 
-/** Compares `<example>/.out/{original,severan}/client` in `browser`. */
+/** Compares `<example>/.out/{original,pruned}/client` in `browser`. */
 export async function browserCheck(
   browser: Browser,
   dir: string,
 ): Promise<BrowserResult> {
   const out = path.join(dir, ".out");
   const original = await run(browser, path.join(out, "original", "client"));
-  const severan = await run(browser, path.join(out, "severan", "client"));
-  if (original.length !== severan.length) {
+  const pruned = await run(browser, path.join(out, "pruned", "client"));
+  if (original.length !== pruned.length) {
     return {
       steps: original.length,
       identical: false,
       firstDifference: {
         step: "count buttons",
         original: `${original.length - 1} buttons`,
-        severan: `${severan.length - 1} buttons`,
+        pruned: `${pruned.length - 1} buttons`,
       },
     };
   }
   for (const [i, before] of original.entries()) {
-    const after = severan[i];
+    const after = pruned[i];
     // How often a resource is requested is timing, not behavior.
     const errors = (step: Step) => [...new Set(step.errors)].sort().join(" | ");
     if (errors(before) !== errors(after)) {
@@ -254,7 +254,7 @@ export async function browserCheck(
         firstDifference: {
           step: `${before.name}: errors`,
           original: errors(before) || "none",
-          severan: errors(after) || "none",
+          pruned: errors(after) || "none",
         },
       };
     }
@@ -267,7 +267,7 @@ export async function browserCheck(
         firstDifference: {
           step: `${before.name}: DOM`,
           original: before.dom.slice(Math.max(0, at - 80), at + 80),
-          severan: after.dom.slice(Math.max(0, at - 80), at + 80),
+          pruned: after.dom.slice(Math.max(0, at - 80), at + 80),
         },
       };
     }

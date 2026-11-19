@@ -1,7 +1,7 @@
 /**
- * Builds each app in `examples/` with Vite, without severan and with it
+ * Builds each app in `examples/` with Vite, without svelte-prune and with it
  * (the package as built in `dist/`), client and SSR, and compares what
- * changed with the app's `snapshot.json`: shipped JS and CSS, what severan
+ * changed with the app's `snapshot.json`: shipped JS and CSS, what svelte-prune
  * rewrote, and the rendered HTML, which must be the same both ways.
  *
  *   bun run examples              # fail on any change from the snapshots
@@ -39,7 +39,7 @@ const { values: args } = parseArgs({
 const ROOT = path.join(import.meta.dirname, "..");
 const EXAMPLES = path.join(ROOT, "examples");
 const VITE = path.join(EXAMPLES, "node_modules/vite/bin/vite.js");
-type Variant = "original" | "severan";
+type Variant = "original" | "pruned";
 
 if (!existsSync(VITE)) {
   console.error("Install the examples first: cd examples && bun install");
@@ -103,7 +103,7 @@ process.stdout.write(render().replace(/<!(?:--[^>]*--)?>/g, ""));
 async function build(dir: string, variant: Variant) {
   const out = path.join(dir, ".out", variant);
   rmSync(out, { recursive: true, force: true });
-  const env = { SEVERAN: variant === "severan" ? "1" : "0" };
+  const env = { SVELTE_PRUNE: variant === "pruned" ? "1" : "0" };
   await run("node", [VITE, "build"], dir, {
     ...env,
     OUT: path.join(out, "client"),
@@ -149,7 +149,7 @@ const CLASS_ATTRIBUTE = /\sclass="([^"]*)"/g;
 const WHITESPACE = /\s+/;
 
 /**
- * Selectors of `original` that severan's CSS lost though every class they
+ * Selectors of `original` that svelte-prune's CSS lost though every class they
  * require is on some element of `html`: each must be zero, since a class
  * that renders is never pruned.
  */
@@ -184,9 +184,9 @@ async function snapshot(dir: string, browser: Browser) {
       "utf8",
     ),
   );
-  // One at a time: severan writes the example's `node_modules/.severan`.
+  // One at a time: svelte-prune writes the example's `node_modules/.svelte-prune`.
   const original = await build(dir, "original");
-  const severan = await build(dir, "severan");
+  const pruned = await build(dir, "pruned");
   const inBrowser = await browserCheck(browser, dir);
 
   // What the plugin rewrote, from the same analysis.
@@ -202,25 +202,25 @@ async function snapshot(dir: string, browser: Browser) {
     library,
     projectRoot: dir,
     files,
-    failure: { feature: "severan", fallback: "nothing was rewritten" },
+    failure: { feature: "svelte-prune", fallback: "nothing was rewritten" },
     options: { unwrap: true },
   });
   if ("warning" in result) throw new Error(result.warning);
 
   const sizes = (key: "js" | "css") => ({
     original: original[key],
-    severan: severan[key],
-    gzipSmallerBy: percent(original[key].gzip, severan[key].gzip),
+    pruned: pruned[key],
+    gzipSmallerBy: percent(original[key].gzip, pruned[key].gzip),
   });
-  const lost = lostSelectors(original.cssText, severan.cssText, severan.html);
+  const lost = lostSelectors(original.cssText, pruned.cssText, pruned.html);
   if (lost.length > 0) {
     console.error(
-      `${path.basename(dir)}: severan's CSS lost selectors the page renders: ${lost.slice(0, 5).join(" | ")}`,
+      `${path.basename(dir)}: svelte-prune's CSS lost selectors the page renders: ${lost.slice(0, 5).join(" | ")}`,
     );
   }
-  const identical = original.html === severan.html;
+  const identical = original.html === pruned.html;
   let at = 0;
-  while (at < original.html.length && original.html[at] === severan.html[at]) {
+  while (at < original.html.length && original.html[at] === pruned.html[at]) {
     at++;
   }
   return {
@@ -244,7 +244,7 @@ async function snapshot(dir: string, browser: Browser) {
       ...(!identical && {
         firstDifference: {
           original: original.html.slice(Math.max(0, at - 80), at + 80),
-          severan: severan.html.slice(Math.max(0, at - 80), at + 80),
+          pruned: pruned.html.slice(Math.max(0, at - 80), at + 80),
         },
       }),
     },
@@ -301,16 +301,16 @@ for (const [i, name] of names.entries()) {
   );
   if (!current.browser.identical) {
     failed = true;
-    const { step, original, severan } = current.browser.firstDifference ?? {};
+    const { step, original, pruned } = current.browser.firstDifference ?? {};
     console.error(
-      `${name}: behaves differently with severan in the browser (${step})\n  original: …${original}…\n  severan:  …${severan}…`,
+      `${name}: behaves differently with svelte-prune in the browser (${step})\n  original: …${original}…\n  pruned:   …${pruned}…`,
     );
   }
   if (current.css.renderedSelectorsLost > 0) failed = true;
   if (!current.html.identical) {
     failed = true;
     console.error(
-      `${name}: renders differently with severan\n  original: …${current.html.firstDifference?.original}…\n  severan:  …${current.html.firstDifference?.severan}…`,
+      `${name}: renders differently with svelte-prune\n  original: …${current.html.firstDifference?.original}…\n  pruned:   …${current.html.firstDifference?.pruned}…`,
     );
   }
   if (args.update) {
