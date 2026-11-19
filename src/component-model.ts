@@ -90,10 +90,7 @@ export type ComponentModel = {
   readonly providedContexts: Set<string>;
   providesUnknownContext: boolean;
   /** Per `setContext` call: an object literal's properties, or `null`. */
-  readonly contextObjects: Map<
-    string,
-    Array<Map<string, MirroredStore | null> | null>
-  >;
+  readonly contextObjects: Map<string, Array<ContextObject | null>>;
   /** Context properties it may write or hand on (`"*"`: all); see `readContextUse`. */
   readonly contextLeaks: Map<string, Set<string>>;
   readsUnknownContext: boolean;
@@ -118,6 +115,15 @@ export type GuardedWrite = {
   readonly guards: readonly Guard[];
   readonly value: Expression;
   readonly line: number;
+};
+
+/**
+ * An object handed on only to `setContext`, and to `getContext(key)?.m(…)`
+ * for each of `unlessProvided`: it stays put if nothing provides `key`.
+ */
+type ContextObject = {
+  readonly properties: Map<string, MirroredStore | null>;
+  readonly unlessProvided: readonly string[];
 };
 
 /**
@@ -566,17 +572,27 @@ function readContextFlow(
   });
 }
 
-/** An object literal inline or in a `const` nothing else uses; else `null`. */
+/**
+ * An object literal inline or in a `const` nothing else uses, but
+ * `getContext(key)?.m(…)`; else `null`.
+ */
 function contextObject(
   model: ComponentModel,
   node: Node | undefined,
   parents: Map<Node, Node | null>,
   reactive: Map<Node, Guard[]>,
-): Map<string, MirroredStore | null> | null {
+): ContextObject | null {
   let object: Node | null | undefined = node;
+  const unlessProvided: string[] = [];
   if (node?.type === "Identifier") {
     const constant = topLevelConstant(model, node);
-    if (constant?.binding.references.length !== 1) return null;
+    if (!constant) return null;
+    for (const reference of constant.binding.references) {
+      if (reference.node === node) continue;
+      const key = optionalContextCall(model, reference.parent, reference.node);
+      if (key === undefined) return null;
+      unlessProvided.push(key);
+    }
     object = constant.declarator.init;
   }
   if (object?.type !== "ObjectExpression") return null;
@@ -606,7 +622,29 @@ function contextObject(
       store && { ...store, readOnly: wrapped !== undefined },
     );
   }
-  return properties;
+  return { properties, unlessProvided };
+}
+
+/** `key` if `call` is `getContext(key)?.m(…, argument, …)`. */
+function optionalContextCall(
+  model: ComponentModel,
+  call: Node,
+  argument: Node,
+): string | undefined {
+  if (
+    call.type !== "CallExpression" ||
+    !call.arguments.includes(argument as Expression) ||
+    call.callee.type !== "MemberExpression" ||
+    !call.callee.optional ||
+    call.callee.object.type !== "CallExpression"
+  ) {
+    return undefined;
+  }
+  const context = call.callee.object;
+  return context.callee.type === "Identifier" &&
+    context.callee.name === "getContext"
+    ? contextKey(context.arguments[0], model)
+    : undefined;
 }
 
 function topLevelConstant(model: ComponentModel, id: Identifier) {
@@ -845,6 +883,12 @@ function reactiveStatements(ast: AST.Root): Map<Node, Guard[]> {
   return found;
 }
 
+/**
+ * The reads `declareDestructured` makes: one of `null` or `undefined` throws
+ * as the component starts, so it never renders with that value.
+ */
+export const DESTRUCTURING_READS = new WeakSet<object>();
+
 /** Each name becomes a read of its path from `read`; rest and computed keys are unknown. */
 function declareDestructured(
   model: ComponentModel,
@@ -854,15 +898,18 @@ function declareDestructured(
 ): void {
   // The read takes the pattern's place in the source, for reports.
   const at = { start: pattern.start, end: pattern.end };
-  const member = (property: Expression, computed: boolean) =>
-    ({
+  const member = (property: Expression, computed: boolean) => {
+    const node = {
       type: "MemberExpression",
       object: read,
       property,
       computed,
       optional: false,
       ...at,
-    }) as unknown as Expression;
+    } as unknown as Expression;
+    DESTRUCTURING_READS.add(node);
+    return node;
+  };
   switch (pattern.type) {
     case "Identifier":
       model.declarations.set(pattern.name, read);
@@ -1117,6 +1164,37 @@ function mutates(parent: Node | undefined, child: Node): boolean {
   }
 }
 
+/**
+ * Whether the identifier at the top of `stack` is a name a destructuring
+ * declaration declares (`a` in `const { a, b: [c = a] } = x`), not a read.
+ */
+function declaredByPattern(stack: readonly Node[]): boolean {
+  let child = stack[stack.length - 1];
+  for (let i = stack.length - 2; i >= 0; i--) {
+    const up = stack[i];
+    switch (up.type) {
+      case "VariableDeclarator":
+        return up.id === child && child !== stack[stack.length - 1];
+      case "Property":
+        if (up.value !== child || stack[i - 1]?.type !== "ObjectPattern") {
+          return false;
+        }
+        break;
+      case "AssignmentPattern":
+        if (up.left !== child) return false;
+        break;
+      case "RestElement":
+      case "ObjectPattern":
+      case "ArrayPattern":
+        break;
+      default:
+        return false;
+    }
+    child = up;
+  }
+  return false;
+}
+
 /** Array methods the evaluator models, which change nothing they're called on. */
 export const ARRAY_METHODS: ReadonlySet<string> = new Set([
   "includes",
@@ -1242,6 +1320,7 @@ function findEscapes(ast: AST.Root): Map<string, Escape> {
         // Declaring or exporting a name doesn't hand its value anywhere,
         // and `{#each name}` hands on its items (see `eachItems`).
         (parent?.type === "VariableDeclarator" && key === "id") ||
+        declaredByPattern(stack) ||
         parent?.type === "ExportSpecifier" ||
         (parent?.type === "EachBlock" &&
           (key === "expression" || key === "context"))

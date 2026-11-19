@@ -13,6 +13,15 @@
   right side couldn't be removed on its own. Gzipped JS of the svelte-ux
   example 7.4% smaller (6.8%), flowbite-svelte 37.3% (37.2%), Carbon 23
   bytes less.
+- A name a destructuring declaration declares (`const { compact } =
+  getContext("group")`) no longer counts as handing its value on, so an
+  object or store it holds stays known, and a context a component may be
+  rendered without no longer makes it unknown: destructuring `undefined`
+  throws before anything renders. A context object a provider also hands
+  to `getContext(key)?.register(ctx)` flows to its readers when nothing
+  provides `key` (Carbon's `Tabs`, without `PageHeader`). Gzipped JS of
+  the examples: svelte-5-ui-lib 22.9% smaller (18.8%), flowbite-svelte
+  37.8% (37.3%), Carbon 34.0% (33.5%); Carbon's CSS 70.7% (70.4%).
 
 **Fixes**
 
