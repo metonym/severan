@@ -34,6 +34,14 @@
   `{#each}` item is also read outside the walk that binds it, such as
   where a snippet is called, or in a component map's key
   (`{#each kinds as k}<svelte:component this={icons[k]} />`).
+- A library component a file imports but names nowhere else (not in its
+  markup, scripts, comments or strings) has no call site there. It was
+  rendered with any props, which kept every variant of it even where
+  another component renders it with known props: svelte-ux's example
+  imports `Field` without rendering it, so `TextField`'s `Field` kept
+  everything. The svelte-ux example: gzipped JS 6.8% smaller (5.5%),
+  Tailwind's CSS 35.3% (24.9%). A name the text mentions anywhere else,
+  such as in markup another preprocessor generates, keeps it open.
 
 **Fixes**
 

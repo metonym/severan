@@ -111,6 +111,28 @@ let { tone = "danger" } = $props();`,
     expect(unrendered.sites).toHaveLength(1);
   });
 
+  test("a component only its import names renders nothing", () => {
+    const unused = collectSvelteUsage(
+      app(
+        `import { Button, Tag } from "carbon-components-svelte";`,
+        `<Tag type="red" />`,
+      ),
+      "/app/App.svelte",
+      carbon,
+    );
+    expect(unused.sites.map((site) => [site.component, site.open])).toEqual([
+      ["Tag/Tag.svelte", false],
+    ]);
+
+    // Named anywhere else, in a comment or a string too: still open.
+    const named = collectSvelteUsage(
+      app(IMPORT_BUTTON, `<!-- Button -->`),
+      "/app/App.svelte",
+      carbon,
+    );
+    expect(named.sites.map((site) => site.open)).toEqual([true]);
+  });
+
   test("direct-path and namespace imports", () => {
     const direct = collectSvelteUsage(
       app(
