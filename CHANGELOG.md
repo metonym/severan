@@ -23,8 +23,17 @@
   the `{#each}` items around it, in `{#each}`, `{#if}`, `{:then}`, snippets
   and component content. An `{#if}` on one that depends only on props keeps
   only the branch that can render, and a child component given it keeps only
-  those values. Destructured names stay unknown. Carbon's example: 256 bytes
-  less JS.
+  those values. Carbon's example: 256 bytes less JS.
+- Destructuring is read in `{@const}` and `{#each}`: nested patterns,
+  arrays and defaults (`{#each items as { label, tags: [first] = [] }}`).
+  Only a rest element's names stay unknown, and handing on a name
+  destructured from an item no longer makes the whole item unknown.
+
+**Fixes**
+
+- Assigning or binding an `{#each}` item (`bind:value={item}`) keeps
+  what its array holds unknown: Svelte writes it back to the array, and a
+  read of the array (`{#if items[0] === "a"}`) was folded.
 
 ## 0.7.2
 

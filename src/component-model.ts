@@ -1107,6 +1107,15 @@ function mutates(parent: Node | undefined, child: Node): boolean {
   }
 }
 
+/** Whether `parent` assigns `child`, a name, a new value. */
+function assigns(parent: Node | undefined, child: Node): boolean {
+  return (
+    (parent?.type === "AssignmentExpression" && parent.left === child) ||
+    parent?.type === "UpdateExpression" ||
+    parent?.type === "BindDirective"
+  );
+}
+
 function findEscapes(ast: AST.Root): Map<string, Escape> {
   const escapes = new Map<string, Escape>();
   const entry = (name: string): Escape => {
@@ -1117,8 +1126,13 @@ function findEscapes(ast: AST.Root): Map<string, Escape> {
     }
     return found;
   };
-  /** `[array, item, destructured]` per name `{#each array as …}` declares. */
-  const eachItems: Array<[string, string, boolean]> = [];
+  /**
+   * `[array, name, path]` per name `{#each array as …}` declares: `path`
+   * from the item to it, `null` if it isn't one (a rest element's).
+   */
+  const eachItems: Array<[string, string, string[] | null]> = [];
+  /** Names assigned (`=`, `++`, `bind:`), not only mutated. */
+  const written = new Set<string>();
   const stack: Node[] = [];
   walk(ast, {
     enter(node, parent, key) {
@@ -1129,12 +1143,8 @@ function findEscapes(ast: AST.Root): Map<string, Escape> {
         node.context
       ) {
         const array = node.expression.name;
-        if (node.context.type === "Identifier") {
-          eachItems.push([array, node.context.name, false]);
-        } else {
-          for (const { name } of extractIdentifiers(node.context)) {
-            eachItems.push([array, name, true]);
-          }
+        for (const [name, path] of patternPaths(node.context, [])) {
+          eachItems.push([array, name, path]);
         }
       }
       if (node.type !== "Identifier" || !isReference(node, parent)) return;
@@ -1166,6 +1176,7 @@ function findEscapes(ast: AST.Root): Map<string, Escape> {
       const consumer = stack[index - 1];
       if (mutates(consumer, current)) {
         entry(node.name).full = true;
+        if (current === node && assigns(consumer, node)) written.add(node.name);
       } else if (path.length > 0) {
         entry(node.name).paths.push(path);
       } else if (
@@ -1180,15 +1191,57 @@ function findEscapes(ast: AST.Root): Map<string, Escape> {
   });
   // What happens to an item happens to its array's elements: an item
   // handed on is a path that matters only if items are objects. A name
-  // destructured from an item is some path of it, so the whole item.
-  for (const [array, item, destructured] of eachItems.reverse()) {
-    const itemEscape = escapes.get(item);
+  // destructured from an item is that path of it; a rest element's is
+  // some path of it, so the whole item. Assigning a name writes back to
+  // the object that holds it: the item, or the array for the item itself.
+  for (const [array, name, path] of eachItems.reverse()) {
+    const itemEscape = escapes.get(name);
     if (!itemEscape) continue;
     const target = entry(array);
-    if (itemEscape.full || destructured) target.paths.push(["[]"]);
-    for (const path of itemEscape.paths) target.paths.push(["[]", ...path]);
+    if (!path) {
+      target.paths.push(["[]"]);
+      continue;
+    }
+    if (written.has(name)) target.paths.push(["[]", ...path].slice(0, -1));
+    if (itemEscape.full) target.paths.push(["[]", ...path]);
+    for (const read of itemEscape.paths) {
+      target.paths.push(["[]", ...path, ...read]);
+    }
   }
   return escapes;
+}
+
+/** Each name `pattern` declares, with its path in what it destructures. */
+function patternPaths(
+  pattern: Node,
+  path: string[] | null,
+): Array<[string, string[] | null]> {
+  switch (pattern.type) {
+    case "Identifier":
+      return [[pattern.name, path]];
+    case "AssignmentPattern":
+      return patternPaths(pattern.left, path);
+    case "RestElement":
+      return patternPaths(pattern.argument, null);
+    case "ObjectPattern":
+      return pattern.properties.flatMap((property) => {
+        if (property.type !== "Property") return patternPaths(property, null);
+        const key = propertyName(property);
+        return patternPaths(
+          property.value,
+          path && key !== undefined ? [...path, key] : null,
+        );
+      });
+    case "ArrayPattern":
+      return pattern.elements.flatMap((element, i) =>
+        element ? patternPaths(element, path && [...path, String(i)]) : [],
+      );
+    default:
+      return extractIdentifiers(pattern as Pattern).map(({ name }) => [
+        name,
+        null,
+      ]);
+  }
 }
 
 export function memberKey(parent: Node | null): string | undefined {

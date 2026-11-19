@@ -277,6 +277,26 @@ describe("specializeComponent", () => {
     );
     expect(destructured).toContain("{#if item.open}");
 
+    // Assigning a destructured name writes the item's property.
+    const assigned = specialize(
+      `<script>
+  const items = [{ open: false }];
+</script>
+{#each items as { open }}<button on:click={() => (open = true)}>x</button>{/each}
+{#each items as item}{#if item.open}<p>open</p>{/if}{/each}`,
+    );
+    expect(assigned).toContain("{#if item.open}");
+
+    // Binding the item itself writes the array's element.
+    const bound = specialize(
+      `<script>
+  const items = ["a"];
+</script>
+{#each items as item}<input bind:value={item} />{/each}
+{#if items[0] === "a"}<p>a</p>{/if}`,
+    );
+    expect(bound).toContain('{#if items[0] === "a"}');
+
     const slotted = specialize(
       `<script>
   const state = { open: false };
