@@ -195,9 +195,13 @@ function contextValues(
       for (const object of objects) {
         const props = new Map<string, Value>();
         for (const [property, mirrored] of object.properties) {
+          // A store the object holds twice flows only if no holder leaks.
           const flows =
             mirrored &&
-            (mirrored.readOnly || !(leaked?.has("*") || leaked?.has(property)));
+            ((mirrored.readOnly && mirrored.aliases.length === 0) ||
+              ![property, ...mirrored.aliases].some(
+                (name) => leaked?.has("*") || leaked?.has(name),
+              ));
           props.set(property, flows ? storeValue(mirrored, scope) : UNKNOWN);
         }
         value = join(value, possible(shape({ kind: "object", props })));

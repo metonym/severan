@@ -1865,3 +1865,93 @@ describe("context objects handed to an optional provider", () => {
     );
   });
 });
+
+// A library script that reads one context leaves the others flowing, and
+// a store a provider's context holds twice, or feeds to `derived`, still
+// flows unless a reader may write it through either property.
+
+const STORE_LIBRARY = {
+  "theme.js": `import { getContext } from "svelte";
+export function useTheme() {
+  return getContext("theme") ?? "light";
+}`,
+  "Group.svelte": `<script>
+  import { setContext } from "svelte";
+  import { derived, writable } from "svelte/store";
+  export let compact = false;
+  const compactStore = writable(compact);
+  $: compactStore.set(compact);
+  const loose = derived(compactStore, (value) => !value);
+  setContext("group", { compact: compactStore, dense: compactStore, loose });
+</script>
+<slot />`,
+  "Item.svelte": `<script>
+  import { getContext } from "svelte";
+  import { useTheme } from "./theme.js";
+  const theme = useTheme();
+  const { compact } = getContext("group");
+</script>
+{#if $compact}<small class={theme}>compact</small>{:else}<b class={theme}>loose</b>{/if}`,
+  "Toggle.svelte": `<script>
+  import { getContext } from "svelte";
+  const { dense } = getContext("group");
+</script>
+<button on:click={() => dense.set(true)}>dense</button>`,
+};
+
+// Any library script that reads "group" may write its stores.
+const GRABBING = {
+  "group.js": `import { getContext } from "svelte";
+export function grabGroup() {
+  return getContext("group");
+}`,
+  "Grabbing.svelte": `<script>
+  import { grabGroup } from "./group.js";
+  const group = grabGroup();
+</script>
+<i>{typeof group}</i>`,
+};
+
+const stores = (markup: string, extra = {}): LibraryApp => ({
+  lib: { ...STORE_LIBRARY, ...extra },
+  app: appRendering(markup),
+});
+
+const STORES: Record<string, LibraryApp> = {
+  "a script reads another context": stores("<Group><Item /></Group>"),
+  "a reader may write the store as an alias": stores(
+    "<Group><Item /><Toggle /></Group>",
+  ),
+  "a script reads the same context": stores(
+    "<Group><Item /><Grabbing /></Group>",
+    GRABBING,
+  ),
+};
+
+describe("context stores", () => {
+  const cases = Object.keys(STORES).flatMap((name): [string, boolean][] => [
+    [name, false],
+    [name, true],
+  ]);
+  test.each(cases)("%s (unwrap: %p)", async (name, unwrap) => {
+    const { before, after } = await renderSpecialized(STORES[name], {
+      unwrap,
+    });
+    expect(after).toBe(before);
+  });
+
+  test("flow past a script that reads another context", async () => {
+    const sources = await specializedLibrary(stores("<Group><Item /></Group>"));
+    expect(sources["Item.svelte"]).not.toContain("<small");
+  });
+
+  test.each([
+    ["a reader", stores("<Group><Item /><Toggle /></Group>")],
+    ["a script", stores("<Group><Item /><Grabbing /></Group>", GRABBING)],
+  ])("stay unknown when %s may write them", async (_, shape) => {
+    const sources = await specializedLibrary(shape);
+    expect(sources["Item.svelte"] ?? STORE_LIBRARY["Item.svelte"]).toContain(
+      "<small",
+    );
+  });
+});

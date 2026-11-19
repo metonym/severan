@@ -2,7 +2,7 @@
   "library": "carbon-components-svelte@0.114.3",
   "rewritten": {
     "components": 84,
-    "edits": 1956,
+    "edits": 1960,
     "tables": {
       "pruned": 0,
       "emptied": 0,
@@ -16,10 +16,10 @@
       "gzip": 152382
     },
     "severan": {
-      "bytes": 314101,
-      "gzip": 100606
+      "bytes": 313716,
+      "gzip": 100477
     },
-    "gzipSmallerBy": "34.0%"
+    "gzipSmallerBy": "34.1%"
   },
   "css": {
     "original": {
@@ -27,10 +27,10 @@
       "gzip": 93956
     },
     "severan": {
-      "bytes": 223027,
-      "gzip": 27507
+      "bytes": 222644,
+      "gzip": 27464
     },
-    "gzipSmallerBy": "70.7%",
+    "gzipSmallerBy": "70.8%",
     "renderedSelectorsLost": 0
   },
   "html": {
