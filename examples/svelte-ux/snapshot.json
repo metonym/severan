@@ -1,8 +1,8 @@
 {
   "library": "svelte-ux@1.0.11",
   "rewritten": {
-    "components": 31,
-    "edits": 242,
+    "components": 15,
+    "edits": 262,
     "tables": {
       "pruned": 0,
       "emptied": 0,
@@ -16,10 +16,10 @@
       "gzip": 70339
     },
     "severan": {
-      "bytes": 196796,
-      "gzip": 66496
+      "bytes": 193188,
+      "gzip": 65534
     },
-    "gzipSmallerBy": "5.5%"
+    "gzipSmallerBy": "6.8%"
   },
   "css": {
     "original": {
@@ -27,10 +27,10 @@
       "gzip": 14287
     },
     "severan": {
-      "bytes": 83265,
-      "gzip": 10724
+      "bytes": 68320,
+      "gzip": 9249
     },
-    "gzipSmallerBy": "24.9%",
+    "gzipSmallerBy": "35.3%",
     "renderedSelectorsLost": 0
   },
   "html": {

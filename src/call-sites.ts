@@ -225,6 +225,8 @@ function contextUsage(
 type ImportBindings = {
   /** Local binding -> library component key, or app component file. */
   components: Map<string, string>;
+  /** The `components` that are the app's own. */
+  appComponents: Set<string>;
   /** Library bindings that aren't one component (`import * as C`). */
   exports: Map<string, Export>;
   /** Bindings known to hold a component (library, icons, local `.svelte`). */
@@ -246,6 +248,7 @@ type ImportBindings = {
 function newBindings(): ImportBindings {
   return {
     components: new Map(),
+    appComponents: new Set(),
     exports: new Map(),
     objects: new Set(),
     reExported: [],
@@ -319,6 +322,7 @@ function readImports(
       if (appImport) {
         if (appImport.exact && specifier.kind === "default") {
           bindings.components.set(specifier.local, appImport.keys[0]);
+          bindings.appComponents.add(specifier.local);
         } else {
           bindings.openAppComponents.push(...appImport.keys);
         }
@@ -618,9 +622,18 @@ function staticValue(
   }
 }
 
+/** Whether `code` holds `name` other than once, where it's imported. */
+function namedElsewhere(code: string, name: string): boolean {
+  const escaped = name.replaceAll("$", "\\$");
+  const names = code.match(new RegExp(`(?<![\\w$])${escaped}(?![\\w$])`, "g"));
+  return (names?.length ?? 0) > 1;
+}
+
 /**
- * A component used as a value, spread into, or imported but never rendered
- * as a tag is open; a file that doesn't parse opens all its imports.
+ * A component used as a value or spread into is open, and so is an app
+ * component imported but never named; a library component the file's text
+ * names only in its import has no site. A file that doesn't parse opens all
+ * its imports.
  */
 export function collectSvelteUsage(
   code: string,
@@ -826,8 +839,15 @@ export function collectSvelteUsage(
   for (const local of bindings.exports.keys()) {
     if (!rendered.has(local)) usage.openAll = true;
   }
+  // Markup another preprocessor generates (`<template lang="pug">`) is
+  // invisible to the parser, so a library component the parser never saw
+  // stays open unless the text names it only where it's imported. An app
+  // component always does: one with no site at all would be closed.
   for (const [local, key] of bindings.components) {
-    if (!rendered.has(local)) {
+    if (
+      !rendered.has(local) &&
+      (bindings.appComponents.has(local) || namedElsewhere(code, local))
+    ) {
       usage.sites.push(
         openSite(key, file, `${local} is imported but not rendered as a tag`),
       );

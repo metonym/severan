@@ -1590,6 +1590,17 @@ describe("values `{@const}` declares", () => {
     expect(code).toContain("<sub>sm</sub>");
   });
 
+  test("fold for a child the app imports but never renders", async () => {
+    const shape = constTag(
+      '<List size="md" items={[{ label: "a" }]} />',
+      'import { Row } from "mylib";',
+    );
+    const { before, after } = await renderSpecialized(shape, { unwrap: true });
+    expect(after).toBe(before);
+    const sources = await specializedLibrary(shape);
+    expect(sources["Row.svelte"]).not.toContain("dense</p>");
+  });
+
   test("fold in a snippet", async () => {
     const sources = await specializedLibrary(
       constTag('<Snippets size="md" />'),
