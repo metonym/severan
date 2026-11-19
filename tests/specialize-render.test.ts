@@ -1687,3 +1687,101 @@ describe("snippet parameters", () => {
     expect(table).toContain("<s>inner</s>");
   });
 });
+// An array a name holds stays known through `x = …`, which rebinds `x`
+// and leaves the array alone; a mutation, an alias or a rebind to
+// something else still makes it unknown.
+
+const LIST_MARKUP = `{#if xs.length > 0}<p>{xs.length}</p>{:else}<i>empty</i>{/if}{#each xs as x}<b>{x}</b>{/each}`;
+
+const listLegacy = (script: string) => `<script>
+  export let mode = "a";
+  ${script}
+</script>
+${LIST_MARKUP}`;
+
+const listRunes = (script: string) => `<script>
+  let { mode = "a" } = $props();
+  ${script}
+</script>
+${LIST_MARKUP}`;
+
+const REBINDS: Record<string, string> = {
+  "a `$:` ternary": listLegacy('$: xs = mode === "b" ? ["b"] : [];'),
+  "a `$:` array, then a guarded `$:` rebind": listLegacy(
+    '$: xs = [];\n  $: if (mode === "b") xs = ["b"];',
+  ),
+  "a `$:` array a `$:` mutates": listLegacy(
+    '$: xs = [];\n  $: if (mode === "b") xs.push("b");',
+  ),
+  "a top-level rebind": listLegacy('let xs = [];\n  xs = ["x"];'),
+  "a rebind in a function called at init": listLegacy(
+    'let xs = [];\n  function fill() { xs = ["x"]; }\n  fill();',
+  ),
+  "a rebind in an arrow called at init": listLegacy(
+    'let xs = [];\n  const fill = () => (xs = ["x"]);\n  fill();',
+  ),
+  "a push, then a self-rebind": listLegacy(
+    'let xs = [];\n  xs.push("x");\n  xs = xs;',
+  ),
+  "a rebind to a concat": listLegacy('let xs = [];\n  xs = xs.concat("x");'),
+  "an alias rebound, then mutated": listLegacy(
+    'let xs = [];\n  let ys;\n  ys = xs;\n  ys.push("x");',
+  ),
+  "a destructuring rebind": listLegacy('let xs = [];\n  [xs] = [["x"]];'),
+  "an object-pattern rebind": listLegacy(
+    'let xs = [];\n  ({ xs } = { xs: ["x"] });',
+  ),
+  "a nullish rebind": listLegacy('let xs;\n  xs ??= ["x"];'),
+  "a logical rebind of an empty array": listLegacy(
+    'let xs = [];\n  xs ||= ["x"];',
+  ),
+  "a `$state` rebind": listRunes('let xs = $state([]);\n  xs = ["x"];'),
+  "a `$state` push": listRunes('let xs = $state([]);\n  xs.push("x");'),
+  "a `$derived` ternary": listRunes(
+    'let xs = $derived(mode === "b" ? ["b"] : []);',
+  ),
+};
+
+describe("arrays through rebinds", () => {
+  const cases = Object.keys(REBINDS).flatMap(
+    (name): [string, string, boolean][] =>
+      ["<List />", '<List /><List mode="b" />'].flatMap(
+        (markup): [string, string, boolean][] => [
+          [name, markup, false],
+          [name, markup, true],
+        ],
+      ),
+  );
+  test.each(cases)("%s, %s (unwrap: %p)", async (name, markup, unwrap) => {
+    const { before, after } = await renderSpecialized(
+      { lib: { "List.svelte": REBINDS[name] }, app: appRendering(markup) },
+      { unwrap },
+    );
+    expect(after).toBe(before);
+  });
+
+  test("a `$:` array that stays empty is folded", async () => {
+    const sources = await specializedLibrary({
+      lib: { "List.svelte": REBINDS["a `$:` ternary"] },
+      app: appRendering("<List />"),
+    });
+    expect(sources["List.svelte"]).not.toContain("<p>");
+  });
+
+  test("assigning an `{#each}` item keeps its array unknown", async () => {
+    const list = (item: string) => `<script>
+  let xs = ["a"];
+</script>
+{#each xs as x}${item}{/each}{#if xs[0] === "a"}<i>A</i>{:else}<u>U</u>{/if}`;
+    const read = await specializedLibrary({
+      lib: { "List.svelte": list("<b>{x}</b>") },
+      app: appRendering("<List />"),
+    });
+    expect(read["List.svelte"]).toContain("{#if true}");
+    const assigned = await specializedLibrary({
+      lib: { "List.svelte": list('<b on:click={() => (x = "")}>{x}</b>') },
+      app: appRendering("<List />"),
+    });
+    expect(assigned["List.svelte"]).toContain('{#if xs[0] === "a"}');
+  });
+});

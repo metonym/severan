@@ -1133,6 +1133,8 @@ function findEscapes(ast: AST.Root): Map<string, Escape> {
   const eachItems: Array<[string, string, string[] | null]> = [];
   /** Names assigned (`=`, `++`, `bind:`), not only mutated. */
   const written = new Set<string>();
+  /** Names `x = …` rebinds. */
+  const rebound = new Set<string>();
   const stack: Node[] = [];
   walk(ast, {
     enter(node, parent, key) {
@@ -1174,7 +1176,13 @@ function findEscapes(ast: AST.Root): Map<string, Escape> {
         index--;
       }
       const consumer = stack[index - 1];
-      if (mutates(consumer, current)) {
+      if (consumer?.type === "AssignmentExpression" && consumer.left === node) {
+        // `x = …` rebinds `x` and leaves the value it held alone; the model
+        // reads rebinds as writes (`guardedWrites`, `unknownNames`). An
+        // `{#each}` item's is settled below, once every item is known.
+        written.add(node.name);
+        rebound.add(node.name);
+      } else if (mutates(consumer, current)) {
         entry(node.name).full = true;
         if (current === node && assigns(consumer, node)) written.add(node.name);
       } else if (path.length > 0) {
@@ -1194,6 +1202,9 @@ function findEscapes(ast: AST.Root): Map<string, Escape> {
   // destructured from an item is that path of it; a rest element's is
   // some path of it, so the whole item. Assigning a name writes back to
   // the object that holds it: the item, or the array for the item itself.
+  for (const [, name] of eachItems) {
+    if (rebound.has(name)) entry(name).full = true;
+  }
   for (const [array, name, path] of eachItems.reverse()) {
     const itemEscape = escapes.get(name);
     if (!itemEscape) continue;

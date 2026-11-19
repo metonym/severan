@@ -317,12 +317,22 @@ describe("specializeComponent", () => {
     expect(code).toContain("<ul>{#if true}<p>None</p>{/if}</ul>");
   });
 
+  test("a `$:` array that stays empty renders no `{#each}` body", () => {
+    const code = specialize(
+      `<script>export let mode = "count"; export let items = [];
+$: shown = mode === "tags" ? items.filter(Boolean) : [];</script>
+<div>{#if shown.length > 0}{#each shown as item}<b>{item}</b>{/each}{/if}</div>`,
+    );
+    expect(code).toContain("<div>{#if false}<!---->{/if}</div>");
+  });
+
   test.each([
     ["mutated", "onMount(() => items.push(1));"],
     ["aliased", "const copy = items;"],
     ["handed to a function", "load(items);"],
     ["truncated through `length`", "items.length = 0;"],
     ["reached through `$$props`", "const all = $$props;"],
+    ["reassigned", "function reset() { items = load(); }"],
   ])("an array %s may not stay empty", (_, statement) => {
     const code = specialize(
       `<script>export let items = []; ${statement}</script>
