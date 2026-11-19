@@ -278,6 +278,96 @@ Every message starts with `` `${tool}:` ``.
   - a module outside `content` renders an app component whose props were read from its call sites: add it to `content`;
   - a module outside the library imports one of its script modules whose tailwind-variants tables were rewritten (through an alias, for example): import them from the package name.
 
+## What it reads
+
+Each example below is rewritten for the call site in its first
+comment; the values come from what that call site passes.
+
+**Names declared in markup.** A `{@const}`, an `{#each}` item, and
+destructuring in either are read where they're in scope, and so is a
+snippet's parameter, as what every `{@render}` of it passes:
+
+```svelte
+<!-- <List size="md" {items} /> -->
+{#snippet row(s, label)}
+  {#if s === "sm"}<small>{label}</small>{:else}<b>{label}</b>{/if}
+{/snippet}
+{#each items as { label, tags: [first] = [] }}
+  {@const compact = size === "sm"}
+  {#if compact}<small>{first}</small>{/if}{@render row(size, label)}
+{/each}
+```
+
+```svelte
+{#snippet row(s, label)}
+  <b>{label}</b>
+{/snippet}
+{#each items as { label, tags: [first] = [] }}
+  {@const compact = false}
+  {@render row("md", label)}
+{/each}
+```
+
+A snippet handed to a component, or used as a component's content,
+keeps its parameters unknown: the component may call it with anything.
+
+**Pure built-ins.** `Array.isArray`, `Math`'s rounding and min/max
+functions, and `includes`, `some` and `every` on arrays (`some` and
+`every` with a callback written inline that only reads) are evaluated,
+and a `&&`, `||` or `??` whose left side decides it folds without its
+right side:
+
+```svelte
+<!-- <Header title="Hi" placement="left" /> -->
+{#if Array.isArray(title)}{#each title as t}<p>{t}</p>{/each}{:else}<p>{title}</p>{/if}
+{#if ["top", "bottom"].includes(placement)}<div class="vertical">…</div>{/if}
+{#if Array.isArray(data) && data.length > 0}<datalist>…</datalist>{/if}
+```
+
+All that's left is `<p>{"Hi"}</p>`. `Array` or `Math` declared in the
+component isn't the built-in, and an object's own `includes` may do
+anything.
+
+**Stores handed down in a context.** A `writable` a component sets only
+from its props, in `$:`, and hands down only in `setContext`, holds
+what those props can be in every component that reads it:
+
+```svelte
+<!-- Tabs.svelte -->
+<script>
+  export let iconOnly = false;
+  const iconOnlyStore = writable(iconOnly);
+  $: iconOnlyStore.set(iconOnly);
+  setContext("tabs", { iconOnly: iconOnlyStore });
+</script>
+
+<!-- Tab.svelte -->
+<script>
+  const { iconOnly } = getContext("tabs");
+</script>
+{#if $iconOnly}<Tooltip text={label}><slot /></Tooltip>{:else}<span>{label}</span>{/if}
+```
+
+With `<Tabs><Tab label="One" /></Tabs>`, `Tab` renders only
+`{#if true}<span>{label}</span>{/if}`, and `Tooltip` is no longer
+bundled. A
+store a reader may write, or that a provider above may receive, keeps
+every value.
+
+**Only what the app uses.** A component your app imports but never
+names again (not in markup, scripts, comments or strings) adds no call
+site, so it's specialized only for where the library itself renders it:
+
+```svelte
+<script>
+  import { TextField, Field } from "my-library"; // Field: unused
+</script>
+<TextField label="Name" />
+```
+
+`TextField` renders `<Field placement="inset">`, so `Field` keeps only
+its `inset` branch.
+
 ## How it stays safe
 
 **Unknown means open.** A component keeps every value of a prop the analysis can't read, and is rendered with any props wherever it can't see the call site:
