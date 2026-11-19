@@ -103,14 +103,15 @@ function evaluateIdentifier(node: Identifier, scope: Scope): Value {
   return scope.locals.get(nested) ?? constTagValue(nested, scope);
 }
 
-/** `{@const name = init}`'s `init`; destructured names stay unknown. */
-function constTagInit(binding: Binding): Expression | undefined {
+/** The `{@const}` that declares `binding`, if it does. */
+function constTag(
+  binding: Binding,
+): { id: Node; init: Expression } | undefined {
   const { declaration } = binding;
   return binding.kind === "const-tag" &&
     declaration.type === "VariableDeclarator" &&
-    declaration.id === binding.node &&
     declaration.init
-    ? declaration.init
+    ? { id: declaration.id, init: declaration.init }
     : undefined;
 }
 
@@ -120,13 +121,19 @@ function constTagInit(binding: Binding): Expression | undefined {
  * the two places. Not memoized, since it depends on those items.
  */
 function constTagValue(binding: Binding, scope: Scope): Value {
-  const init = constTagInit(binding);
+  const tag = constTag(binding);
   // Names can't start with `#`, so this can't collide with one.
   const key = `#const:${binding.node?.start}`;
-  if (!init || scope.pending.has(key)) return UNKNOWN;
+  if (!tag || scope.pending.has(key)) return UNKNOWN;
   scope.pending.add(key);
   try {
-    return keepIfContained(evaluate(init, scope), binding.name, scope.model);
+    let value = evaluate(tag.init, scope);
+    if (tag.id !== binding.node) {
+      const parts = new Map<Binding, Value>();
+      bindPattern(tag.id, value, parts, scope);
+      value = parts.get(binding) ?? UNKNOWN;
+    }
+    return keepIfContained(value, binding.name, scope.model);
   } finally {
     scope.pending.delete(key);
   }
@@ -245,38 +252,74 @@ export function bindEach(
   };
 }
 
-/** Only plain-property names are bound; the others, and the index, stay unknown. */
+/**
+ * Binds each name `pattern` declares to what it holds once `value` is
+ * destructured; a rest element's stays unknown, and so does an `{#each}`
+ * index (not in `pattern`).
+ */
 function bindPattern(
   pattern: Node | null,
   value: Value,
   locals: Map<Binding, Value>,
   scope: Scope,
 ): void {
-  const bind = (node: Identifier, bound: Value) => {
-    const binding = scope.model.scopes.bindingOf(node);
-    if (binding) locals.set(binding, bound);
-  };
-  if (pattern?.type === "Identifier") {
-    bind(pattern, value);
-    return;
-  }
-  if (pattern?.type !== "ObjectPattern") return;
-  for (const property of pattern.properties) {
-    if (
-      property.type !== "Property" ||
-      property.computed ||
-      property.value.type !== "Identifier"
-    ) {
-      continue;
+  switch (pattern?.type) {
+    case "Identifier": {
+      const binding = scope.model.scopes.bindingOf(pattern);
+      if (binding) locals.set(binding, value);
+      return;
     }
-    const key = propertyName(property);
-    if (key !== undefined) {
-      bind(
-        property.value,
-        flatMap(value, (p) => readProperty(p, key)),
+    case "AssignmentPattern":
+      bindPattern(
+        pattern.left,
+        withDefault(value, pattern.right, scope),
+        locals,
+        scope,
       );
-    }
+      return;
+    case "RestElement":
+      bindPattern(pattern.argument, UNKNOWN, locals, scope);
+      return;
+    case "ObjectPattern":
+      for (const property of pattern.properties) {
+        if (property.type !== "Property") {
+          bindPattern(property, UNKNOWN, locals, scope);
+          continue;
+        }
+        const key = propertyName(property);
+        const part =
+          key === undefined
+            ? UNKNOWN
+            : // Destructuring `null` or `undefined` throws: no value to bind.
+              flatMap(value, (p) =>
+                isNullish(p) ? possible() : readProperty(p, key),
+              );
+        bindPattern(property.value, part, locals, scope);
+      }
+      return;
+    case "ArrayPattern":
+      for (const [i, element] of pattern.elements.entries()) {
+        if (!element) continue;
+        // Only arrays are read by index; other iterables stay unknown.
+        const part = flatMap(value, (p) =>
+          isNullish(p)
+            ? possible()
+            : p === EMPTY_ARRAY || (isShape(p) && p.kind === "array")
+              ? readProperty(p, String(i))
+              : UNKNOWN,
+        );
+        bindPattern(element, part, locals, scope);
+      }
+      return;
   }
+}
+
+/** `value`, with `fallback` where it may be `undefined` (a default). */
+function withDefault(value: Value, fallback: Expression, scope: Scope): Value {
+  if (value === UNKNOWN || !value.has(undefined)) return value;
+  const defined = new Set(value);
+  defined.delete(undefined);
+  return join(defined, evaluate(fallback, scope));
 }
 
 function resolve(name: string, scope: Scope): Value {
@@ -422,8 +465,8 @@ function whyUnknown(
     case "Identifier": {
       const nested = nestedBinding(node, scope);
       if (!nested) return whyNameUnknown(node.name, scope, depth);
-      const init = nested.name === node.name && constTagInit(nested);
-      const why = init && inner(init);
+      const tag = nested.name === node.name && constTag(nested);
+      const why = tag && inner(tag.init);
       return why
         ? `\`${node.name}\`: ${why}`
         : `\`${node.name}\` ${NESTED_REASONS[nested.kind] ?? "is declared in a nested scope"}`;
@@ -827,16 +870,13 @@ function bindParameter(
       locals.set(binding, withoutContents(value));
       return true;
     }
-    case "AssignmentPattern": {
-      // The default applies when the value is `undefined`.
-      let bound = value;
-      if (value !== UNKNOWN && value.has(undefined)) {
-        const defined = new Set(value);
-        defined.delete(undefined);
-        bound = join(defined, evaluate(pattern.right, scope));
-      }
-      return bindParameter(pattern.left, bound, locals, scope);
-    }
+    case "AssignmentPattern":
+      return bindParameter(
+        pattern.left,
+        withDefault(value, pattern.right, scope),
+        locals,
+        scope,
+      );
     case "ObjectPattern":
       for (const property of pattern.properties) {
         if (

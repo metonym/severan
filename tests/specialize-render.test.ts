@@ -1497,6 +1497,20 @@ const CONST_LIBRARY = {
   {@const dense = compact || item.dense}
   <Row {dense} />
 {/each}`,
+  "Destructured.svelte": `<script>
+  export let size = "md";
+  export let items = [];
+</script>
+{#each items as { label, tone = "plain", tags: [first] = [] }}
+  {@const { compact, sizes: [main, fallback = "md"] } = { compact: size === "sm", sizes: [size] }}
+  {@const { kind, ...rest } = { kind: tone, size }}
+  {#if compact}<small>{label}</small>{:else}<b>{label}</b>{/if}
+  {#if main === "lg"}<i>lg</i>{:else}<u>{main}</u>{/if}
+  {#if fallback === "md"}<s>md</s>{:else}<em>other</em>{/if}
+  {#if kind === "loud"}<strong>!</strong>{:else}<span>{kind}</span>{/if}
+  {#if first === "x"}<mark>x</mark>{:else}<q>{first}</q>{/if}
+  {#if rest.size === "sm"}<sub>sm</sub>{:else}<sup>not sm</sup>{/if}
+{/each}`,
   "Snippets.svelte": `<script>
   let { size = "md", children } = $props();
 </script>
@@ -1523,6 +1537,13 @@ const CONST_TAGS: Record<string, LibraryApp> = {
   "an item the app reads at runtime": constTag(
     '<Mixed size="md" items={data} /><Mixed size="sm" items={data} />',
     'const data = JSON.parse(\'[{"dense": true}, {"dense": false}]\');',
+  ),
+  "destructured names": constTag(
+    '<Destructured size="md" items={[{ label: "a", tags: ["x"] }, { label: "b", tone: "loud" }]} /><Destructured size="sm" items={[{ label: "c" }]} />',
+  ),
+  "destructured names of app data": constTag(
+    '<Destructured size="lg" items={data} />',
+    'const data = JSON.parse(\'[{"label": "a", "tone": "loud", "tags": ["x"]}]\');',
   ),
   "a snippet's `{@const}`": constTag('<Snippets size="sm" />'),
   "a `{@const}` in component content": constTag(
@@ -1553,6 +1574,20 @@ describe("values `{@const}` declares", () => {
     // With `compact` false, `label` is the item's: known here too.
     expect(list).toContain('<b>{"a"}</b>');
     expect(sources["Row.svelte"]).not.toContain("dense</p>");
+  });
+
+  test("fold where they're destructured", async () => {
+    const sources = await specializedLibrary(
+      constTag(
+        '<Destructured size="md" items={[{ label: "a", tags: ["y"] }]} />',
+      ),
+    );
+    const code = sources["Destructured.svelte"];
+    for (const gone of ["<small>", "<i>lg</i>", "<em>", "<strong>", "<mark>"]) {
+      expect(code).not.toContain(gone);
+    }
+    // A rest element's names stay unknown.
+    expect(code).toContain("<sub>sm</sub>");
   });
 
   test("fold in a snippet", async () => {
