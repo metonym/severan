@@ -1796,3 +1796,72 @@ describe("arrays through rebinds", () => {
     expect(assigned["List.svelte"]).toContain('{#if xs[0] === "a"}');
   });
 });
+
+// A context object a provider also hands to `getContext(key)?.m(…)` flows
+// to its readers when nothing provides `key`; when something does, that
+// may change what's in it.
+
+const HANDOFF_LIBRARY = {
+  "Group.svelte": `<script>
+  import { getContext, setContext } from "svelte";
+  import { writable } from "svelte/store";
+  export let compact = false;
+  const compactStore = writable(compact);
+  $: compactStore.set(compact);
+  const ctx = { compact: compactStore };
+  setContext("group", ctx);
+  getContext("outer")?.register(ctx);
+</script>
+<slot />`,
+  "Item.svelte": `<script>
+  import { getContext } from "svelte";
+  const { compact } = getContext("group");
+</script>
+{#if $compact}<small>compact</small>{:else}<b>loose</b>{/if}`,
+  "Outer.svelte": `<script>
+  import { setContext } from "svelte";
+  setContext("outer", { register: (group) => group.compact.set(true) });
+</script>
+<slot />`,
+};
+
+const handoff = (markup: string): LibraryApp => ({
+  lib: HANDOFF_LIBRARY,
+  app: appRendering(markup),
+});
+
+const HANDOFFS: Record<string, LibraryApp> = {
+  "nothing provides the key": handoff("<Group><Item /></Group>"),
+  "a provider above takes the object": handoff(
+    "<Outer><Group><Item /></Group></Outer>",
+  ),
+};
+
+describe("context objects handed to an optional provider", () => {
+  const cases = Object.keys(HANDOFFS).flatMap((name): [string, boolean][] => [
+    [name, false],
+    [name, true],
+  ]);
+  test.each(cases)("%s (unwrap: %p)", async (name, unwrap) => {
+    const { before, after } = await renderSpecialized(HANDOFFS[name], {
+      unwrap,
+    });
+    expect(after).toBe(before);
+  });
+
+  test("flow when nothing provides the key", async () => {
+    const sources = await specializedLibrary(
+      handoff("<Group><Item /></Group>"),
+    );
+    expect(sources["Item.svelte"]).not.toContain("<small>");
+  });
+
+  test("stay unknown when something does", async () => {
+    const sources = await specializedLibrary(
+      handoff("<Outer><Group><Item /></Group></Outer>"),
+    );
+    expect(sources["Item.svelte"] ?? HANDOFF_LIBRARY["Item.svelte"]).toContain(
+      "<small>",
+    );
+  });
+});

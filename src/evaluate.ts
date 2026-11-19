@@ -11,6 +11,7 @@ import {
   callbackBody,
   type ComponentModel,
   contextKey,
+  DESTRUCTURING_READS,
   FUNCTION_DECLARATION,
   type FunctionNode,
   type GuardedWrite,
@@ -1278,8 +1279,10 @@ function evaluateMember(
   if (keys === undefined) return UNKNOWN;
   // A known object's own properties and elements, a string's `length`;
   // anything else (`null.x` throws, a getter may run) is beyond this model.
+  const destructures = DESTRUCTURING_READS.has(node);
   return flatMap(target, (p) => {
     if (optional && isNullish(p)) return UNDEFINED;
+    if (destructures && isNullish(p)) return possible();
     let value = possible();
     for (const key of keys) value = join(value, readProperty(p, key));
     return value;

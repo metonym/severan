@@ -26,6 +26,7 @@ import {
   newComponentUsage,
 } from "./usage";
 import {
+  isNullish,
   join,
   possible,
   sameValue,
@@ -178,10 +179,22 @@ function contextValues(
         unflowable.add(contextKey);
         continue;
       }
+      // Handed to a provider above: it may change what's in it.
+      if (
+        objects.some((object) =>
+          object?.unlessProvided.some((key) => {
+            const provided = resolver(key);
+            return provided === UNKNOWN || ![...provided].every(isNullish);
+          }),
+        )
+      ) {
+        unflowable.add(contextKey);
+        continue;
+      }
       let value = values.get(contextKey) ?? UNDEFINED;
       for (const object of objects) {
         const props = new Map<string, Value>();
-        for (const [property, mirrored] of object) {
+        for (const [property, mirrored] of object.properties) {
           const flows =
             mirrored &&
             (mirrored.readOnly || !(leaked?.has("*") || leaked?.has(property)));

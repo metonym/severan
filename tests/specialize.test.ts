@@ -252,6 +252,16 @@ describe("specializeComponent", () => {
     expect(shadowed).toContain("<p>4</p>");
   });
 
+  test("a name destructured from an object keeps what it holds", () => {
+    const code = specialize(
+      `<script>
+  const { opts } = { opts: { size: "md" } };
+</script>
+{#if opts.size === "md"}<p>md</p>{:else}<p>other</p>{/if}`,
+    );
+    expect(code).not.toContain("other");
+  });
+
   test("if statements keep only the branch that can run", () => {
     const code = specialize(
       `<script>
