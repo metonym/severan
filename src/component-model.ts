@@ -706,6 +706,16 @@ function readContextUse(
 ): void {
   let value: Node = call;
   let parent = parents.get(call);
+  // `getContext(k)?.p` reads only `p`.
+  if (
+    parent?.type === "MemberExpression" &&
+    parent.object === call &&
+    !parent.computed &&
+    parent.property.type === "Identifier"
+  ) {
+    leak(key, parent.property.name);
+    return;
+  }
   // `getContext(k) ?? {}`
   if (parent?.type === "LogicalExpression" && parent.left === value) {
     value = parent;

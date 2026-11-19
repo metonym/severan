@@ -62,8 +62,10 @@ type LibrarySources = {
   componentContexts: Set<string>;
   scriptContexts: Set<string>;
   unknownScriptContext: boolean;
-  /** A `.js` module reads a context, so what it does with one is unseen. */
+  /** A `.js` module reads a context whose key can't be read. */
   scriptReadsContext: boolean;
+  /** Keys `.js` modules read, so what they do with each is unseen. */
+  scriptContextReads: Set<string>;
 };
 
 const SET_CONTEXT = /setContext\(\s*["']([^"']+)["']/g;
@@ -95,6 +97,7 @@ export async function scanLibrarySources(
     scriptContexts: new Set(),
     unknownScriptContext: false,
     scriptReadsContext: false,
+    scriptContextReads: new Set(),
   };
   const files = await listJsAndSvelteFiles(src);
   const codes = await Promise.all(
@@ -105,7 +108,16 @@ export async function scanLibrarySources(
     const isScript = file.endsWith(".js");
     if (isScript) {
       classTokensOf(library.spec)?.script(code, sources.scriptTokens);
-      if (GET_CONTEXT.test(code)) sources.scriptReadsContext = true;
+      if (GET_CONTEXT.test(code)) {
+        const model = loadScriptModel(src, file);
+        if (!model || model.readsUnknownContext) {
+          sources.scriptReadsContext = true;
+        } else {
+          for (const key of model.contextLeaks.keys()) {
+            sources.scriptContextReads.add(key);
+          }
+        }
+      }
     }
     for (const match of code.matchAll(SET_CONTEXT)) {
       (isScript ? sources.scriptContexts : sources.componentContexts).add(
@@ -141,9 +153,11 @@ function contextValues(
   usages: Map<string, ComponentUsage>,
   resolver: ContextResolver,
   svelteMajor: number | undefined,
+  scriptReads: ReadonlySet<string>,
 ): ContextValues {
   const values: ContextValues = new Map();
   const leaks = new Map<string, Set<string>>();
+  for (const key of scriptReads) leaks.set(key, new Set(["*"]));
   for (const key of usages.keys()) {
     const model = modelOf(key);
     if (model.readsUnknownContext) return values;
@@ -260,6 +274,7 @@ function runPass(
   context: (provided: ProvidedContexts) => ContextResolver,
   excluded: ReadonlySet<string>,
   flowContexts: boolean,
+  scriptContextReads: ReadonlySet<string>,
   library: Library,
 ): Pass {
   const { svelteMajor } = library;
@@ -320,7 +335,13 @@ function runPass(
       unknown: provided.unknown,
       values:
         flowContexts && round < MAX_CONTEXT_ROUNDS
-          ? contextValues(modelOf, usages, resolver, svelteMajor)
+          ? contextValues(
+              modelOf,
+              usages,
+              resolver,
+              svelteMajor,
+              scriptContextReads,
+            )
           : new Map(),
     };
     for (const key of usages.keys()) {
@@ -442,6 +463,7 @@ export async function analyzeUsage(input: {
     },
     excluded,
     !sources.scriptReadsContext && !appReadsContext,
+    sources.scriptContextReads,
     library,
   );
 
