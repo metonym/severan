@@ -22,6 +22,10 @@
   provides `key` (Carbon's `Tabs`, without `PageHeader`). Gzipped JS of
   the examples: svelte-5-ui-lib 22.9% smaller (18.8%), flowbite-svelte
   37.8% (37.3%), Carbon 34.0% (33.5%); Carbon's CSS 70.7% (70.4%).
+- A store a context object holds under two names, or feeds to
+  `derived`, still flows to its readers, unless a reader may write it
+  through any of those names. Carbon's example: gzipped JS 34.1% smaller
+  (34.0%), CSS 70.8% (70.7%).
 
 **Fixes**
 

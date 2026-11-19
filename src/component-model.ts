@@ -134,6 +134,8 @@ export type MirroredStore = {
   readonly initial: Expression | null;
   readonly writes: readonly Expression[];
   readonly readOnly: boolean;
+  /** The object's other properties that hold the same store. */
+  readonly aliases: readonly string[];
 };
 
 export class UnsupportedComponentError extends Error {}
@@ -597,30 +599,37 @@ function contextObject(
   }
   if (object?.type !== "ObjectExpression") return null;
   const properties = new Map<string, MirroredStore | null>();
+  const held: Array<{
+    name: string;
+    property: Extract<Node, { type: "Property" }>;
+    store: { id: Identifier; wrapped: boolean } | undefined;
+  }> = [];
   for (const property of object.properties) {
     if (property.type !== "Property" || property.kind !== "init") return null;
     const name = propertyName(property);
     if (name === undefined) return null;
-    const { value } = property;
-    // `readonly(s)` from `svelte/store`
-    const wrapped =
-      value.type === "CallExpression" &&
-      value.callee.type === "Identifier" &&
-      model.storeImports.get(value.callee.name) === "readonly" &&
-      value.arguments.length === 1 &&
-      value.arguments[0].type === "Identifier"
-        ? value.arguments[0]
-        : undefined;
-    const store =
-      value.type === "Identifier"
-        ? mirroredStore(model, value, property, parents, reactive)
-        : wrapped
-          ? mirroredStore(model, wrapped, value, parents, reactive)
-          : null;
-    properties.set(
-      name,
-      store && { ...store, readOnly: wrapped !== undefined },
-    );
+    held.push({ name, property, store: heldStore(model, property.value) });
+  }
+  // Every place the object holds a store hands it on only to its readers.
+  const holders = new Set<Node>(
+    held.flatMap(({ property, store }) =>
+      store ? [store.wrapped ? property.value : property] : [],
+    ),
+  );
+  for (const { name, store } of held) {
+    const mirrored =
+      store && mirroredStore(model, store.id, holders, parents, reactive);
+    if (!store || !mirrored) {
+      properties.set(name, null);
+      continue;
+    }
+    const aliases = held
+      .filter(
+        (other) =>
+          other.name !== name && other.store?.id.name === store.id.name,
+      )
+      .map((other) => other.name);
+    properties.set(name, { ...mirrored, readOnly: store.wrapped, aliases });
   }
   return { properties, unlessProvided };
 }
@@ -647,6 +656,21 @@ function optionalContextCall(
     : undefined;
 }
 
+/** The store `value` names: `s`, or `readonly(s)` from `svelte/store`. */
+function heldStore(
+  model: ComponentModel,
+  value: Node,
+): { id: Identifier; wrapped: boolean } | undefined {
+  if (value.type === "Identifier") return { id: value, wrapped: false };
+  return value.type === "CallExpression" &&
+    value.callee.type === "Identifier" &&
+    model.storeImports.get(value.callee.name) === "readonly" &&
+    value.arguments.length === 1 &&
+    value.arguments[0].type === "Identifier"
+    ? { id: value.arguments[0], wrapped: true }
+    : undefined;
+}
+
 function topLevelConstant(model: ComponentModel, id: Identifier) {
   const binding = model.scopes.bindingOf(id);
   const declarator = binding?.declaration;
@@ -669,14 +693,34 @@ export function propertyName(
     : undefined;
 }
 
-/** `id` must be handed on only in `holder`. */
+/** Whether `node` is what `derived(node, …)` or `derived([…, node], …)` reads. */
+function derivedInput(
+  model: ComponentModel,
+  node: Node,
+  parents: Map<Node, Node | null>,
+): boolean {
+  let input: Node = node;
+  let parent = parents.get(node);
+  if (parent?.type === "ArrayExpression") {
+    input = parent;
+    parent = parents.get(parent);
+  }
+  return (
+    parent?.type === "CallExpression" &&
+    parent.arguments[0] === input &&
+    parent.callee.type === "Identifier" &&
+    model.storeImports.get(parent.callee.name) === "derived"
+  );
+}
+
+/** `id` must be handed on only in `holders`, the context object's. */
 function mirroredStore(
   model: ComponentModel,
   id: Identifier,
-  holder: Node,
+  holders: ReadonlySet<Node>,
   parents: Map<Node, Node | null>,
   reactive: Map<Node, Guard[]>,
-): Omit<MirroredStore, "readOnly"> | null {
+): Omit<MirroredStore, "readOnly" | "aliases"> | null {
   const constant = topLevelConstant(model, id);
   if (!constant) return null;
   const { binding, declarator } = constant;
@@ -692,8 +736,10 @@ function mirroredStore(
   const writes: Expression[] = [];
   for (const reference of binding.references) {
     const { parent } = reference;
-    // Handed on here, or read as `$s`.
-    if (parent === holder) continue;
+    // Handed on in the context object, read as `$s`, or by `derived`.
+    if (holders.has(parent) || derivedInput(model, reference.node, parents)) {
+      continue;
+    }
     if (reference.store && !reference.writes && !reference.mutates) continue;
     if (
       reference.store &&
