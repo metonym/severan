@@ -1,6 +1,11 @@
 import path from "node:path";
-import { lexImportsExports } from "sveast/lexer";
-import { type AST, type Expression, forEachChild, locate } from "sveast/walk";
+import { lexImportsExports } from "svelte-ast/lexer";
+import {
+  type AST,
+  type Expression,
+  forEachChild,
+  locate,
+} from "svelte-ast/walk";
 import { forEachNode, type Node, parse } from "./ast";
 import { buildComponentModel, type ComponentModel } from "./component-model";
 import {

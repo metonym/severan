@@ -7,7 +7,7 @@
  * `infer_namespace` and `check_nodes_for_namespace` from Svelte's compiler
  * closely enough to compare a component with its rewrite.
  */
-import { type AST, forEachChild } from "sveast/walk";
+import { type AST, forEachChild } from "svelte-ast/walk";
 import type { Node } from "./ast";
 import type { MappedText } from "./mapped-text";
 

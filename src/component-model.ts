@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { analyzeScopes, type Binding, type Scopes } from "sveast/scope";
+import { analyzeScopes, type Binding, type Scopes } from "svelte-ast/scope";
 import {
   type AST,
   type Expression,
@@ -11,7 +11,7 @@ import {
   type Pattern,
   type VariableDeclarator,
   walk,
-} from "sveast/walk";
+} from "svelte-ast/walk";
 import { forEachNode, type Node, parse, parseModule } from "./ast";
 import {
   createExportResolver,

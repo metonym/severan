@@ -3,15 +3,15 @@
  * change in any release. Nothing here loads the parser; the analysis and
  * its types are in `internal-analysis.ts`.
  */
-// The bundled copies of sveast's lexer and walker, so a package bundling
+// The bundled copies of svelte-ast's lexer and walker, so a package bundling
 // svelte-prune doesn't ship them twice.
 export {
   type LexedImport,
   lexComponent,
   lexImportsExports,
   lexStrings,
-} from "sveast/lexer";
-export { type AST, walk } from "sveast/walk";
+} from "svelte-ast/lexer";
+export { type AST, walk } from "svelte-ast/walk";
 export { collectLibraryImports } from "./imports";
 export {
   type LibraryImport,

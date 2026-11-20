@@ -1,4 +1,4 @@
-import type { Expression } from "sveast/walk";
+import type { Expression } from "svelte-ast/walk";
 import {
   appScope,
   collectSourceUsage,

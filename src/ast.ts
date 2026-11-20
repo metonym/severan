@@ -1,11 +1,11 @@
-import { createParser } from "sveast/core";
-import { typescript } from "sveast/typescript";
-import { type AST, forEachChild } from "sveast/walk";
+import { createParser } from "svelte-ast/core";
+import { typescript } from "svelte-ast/typescript";
+import { type AST, forEachChild } from "svelte-ast/walk";
 
 export type Node = AST.SvelteNode;
 
 /**
- * sveast without its HTML entity table: the indexer reads class names, which
+ * svelte-ast without its HTML entity table: the indexer reads class names, which
  * never hold a named character reference. TypeScript stays in, so a library
  * release that adds `<script lang="ts">` still parses.
  */

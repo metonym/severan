@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Expression } from "sveast/walk";
+import type { Expression } from "svelte-ast/walk";
 import { analyzeFiles } from "../src/analysis";
 import { parse } from "../src/ast";
 import { buildComponentModel } from "../src/component-model";

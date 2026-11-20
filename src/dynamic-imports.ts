@@ -1,4 +1,4 @@
-import { lexComponent, lexDynamicImports } from "sveast/lexer";
+import { lexComponent, lexDynamicImports } from "svelte-ast/lexer";
 
 /** An `import(…)`, a `require(…)` or Vite's `import.meta.glob(…)`. */
 export type DynamicImport = {

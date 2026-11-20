@@ -11,7 +11,7 @@ import {
   skipTypeWrappers,
   valueVisitorKeys,
   walk,
-} from "sveast/walk";
+} from "svelte-ast/walk";
 import { type Node, parse } from "./ast";
 import { componentMaps, selectedKeys } from "./component-maps";
 import { isTopLevel } from "./component-model";

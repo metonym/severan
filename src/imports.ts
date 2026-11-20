@@ -1,4 +1,4 @@
-import { lexImportsExports } from "sveast/lexer";
+import { lexImportsExports } from "svelte-ast/lexer";
 import { type LibrarySpec, libraryPaths } from "./library-paths";
 
 /**
