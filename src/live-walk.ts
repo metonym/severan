@@ -1,5 +1,5 @@
-import type { Scopes } from "sveast/scope";
-import { type AST, children, type Expression, locate } from "sveast/walk";
+import type { Scopes } from "svelte-ast/scope";
+import { type AST, children, type Expression, locate } from "svelte-ast/walk";
 import type { Node } from "./ast";
 import { componentMaps, selectedKeys } from "./component-maps";
 import { UnsupportedComponentError } from "./component-model";

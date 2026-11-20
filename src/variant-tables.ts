@@ -7,9 +7,9 @@
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { lexComponent, lexImportsExports } from "sveast/lexer";
-import type { Binding } from "sveast/scope";
-import { walk } from "sveast/walk";
+import { lexComponent, lexImportsExports } from "svelte-ast/lexer";
+import type { Binding } from "svelte-ast/scope";
+import { walk } from "svelte-ast/walk";
 import type { Node } from "./ast";
 import type { ModuleUsage } from "./call-sites";
 import {

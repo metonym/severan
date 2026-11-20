@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { lexComponent, lexImportsExports } from "sveast/lexer";
-import { extractIdentifiers } from "sveast/walk";
+import { lexComponent, lexImportsExports } from "svelte-ast/lexer";
+import { extractIdentifiers } from "svelte-ast/walk";
 import { forEachNode, type Node, parseModule } from "./ast";
 import { relativeKey, resolveModule } from "./package-exports";
 

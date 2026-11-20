@@ -1,7 +1,7 @@
 /** Reads a package's barrel with the lexer alone, so callers never load the parser. */
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { lexImportsExports } from "sveast/lexer";
+import { lexImportsExports } from "svelte-ast/lexer";
 
 /** Where a name a package's barrel exports is defined. */
 export type PackageExport = {

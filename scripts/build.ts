@@ -16,7 +16,8 @@ const entries = {
   internal: resolve(root, "src/internal.ts"),
   "internal-analysis": resolve(root, "src/internal-analysis.ts"),
 };
-const SVELTE_IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*)["']svelte/;
+// `svelte` or `svelte/…`, not `svelte-ast`, whose messages quote its imports.
+const SVELTE_IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*)["']svelte["'/]/;
 
 await rm(outDir, { recursive: true, force: true });
 
@@ -37,7 +38,7 @@ if (!result.success) {
   process.exit(1);
 }
 
-// sveast parses components, so nothing may import svelte: it would load
+// svelte-ast parses components, so nothing may import svelte: it would load
 // the consumer's compiler, or fail where none resolves.
 for (const file of await readdir(outDir)) {
   if (!file.endsWith(".js")) continue;
@@ -48,7 +49,7 @@ for (const file of await readdir(outDir)) {
 }
 
 // One declaration file per public entry, holding only what its exports
-// reference: the analysis's own types (and sveast's) stay out.
+// reference: the analysis's own types (and svelte-ast's) stay out.
 await Promise.all(
   (["index", "vite", "webpack", "internal", "internal-analysis"] as const).map(
     (name) =>

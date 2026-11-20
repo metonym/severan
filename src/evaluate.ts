@@ -1,10 +1,10 @@
-import type { Binding } from "sveast/scope";
+import type { Binding } from "svelte-ast/scope";
 import {
   type AST,
   type Expression,
   type Identifier,
   skipTypeWrappers,
-} from "sveast/walk";
+} from "svelte-ast/walk";
 import type { Node } from "./ast";
 import {
   ARRAY_METHODS,
