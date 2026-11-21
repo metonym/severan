@@ -19,6 +19,11 @@ export { collectAppUsage } from "./app-usage";
 export { parse } from "./ast";
 export { loadComponentModel } from "./component-model";
 export { libraryAt } from "./library";
+export {
+  type RenderedUsage,
+  type SharedAnalysis,
+  siblingAnalysis,
+} from "./shared-analysis";
 export { specializeComponent } from "./specialize";
 export {
   libraryStylePruner,

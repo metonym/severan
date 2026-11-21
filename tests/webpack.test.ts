@@ -3,6 +3,7 @@ import path from "node:path";
 import webpack from "webpack";
 import type { LibrarySpec } from "../src/library-paths";
 import { optimizerRegistry } from "../src/loader";
+import { type SharedAnalysis, siblingAnalysis } from "../src/shared-analysis";
 import { SveltePrunePlugin } from "../src/webpack";
 import { CARBON } from "./helpers/carbon";
 import { createFakeProject } from "./helpers/fake-project";
@@ -34,6 +35,7 @@ async function build(
   mode: "production" | "development" | undefined = "production",
   resolve: webpack.Configuration["resolve"] = {},
   library: LibrarySpec = CARBON,
+  siblings: webpack.WebpackPluginInstance[] = [],
 ) {
   const project = createFakeProject();
   if (library === CARBON) project.linkCarbon();
@@ -51,7 +53,7 @@ async function build(
     resolve,
     optimization: { minimize: false },
     devtool: false,
-    plugins: [new SveltePrunePlugin(library, { silent: true })],
+    plugins: [new SveltePrunePlugin(library, { silent: true }), ...siblings],
     infrastructureLogging: { level: "none" },
   });
   const stats = await new Promise<webpack.Stats>((resolve, reject) =>
@@ -172,6 +174,45 @@ describe("SveltePrunePlugin", () => {
       dispose();
     }
   });
+
+  test.each([
+    ["production", true],
+    ["development", false],
+  ] as const)(
+    "shares its %s analysis with sibling plugins: %p",
+    async (mode, shared) => {
+      // Reads it where a CSS plugin would: once assets are processed.
+      const seen: Array<SharedAnalysis | undefined> = [];
+      const sibling: webpack.WebpackPluginInstance = {
+        apply(compiler) {
+          const current = siblingAnalysis(
+            compiler.options.plugins,
+            CARBON.name,
+          );
+          compiler.hooks.thisCompilation.tap("sibling", (compilation) => {
+            compilation.hooks.processAssets.tap("sibling", () => {
+              seen.push(current?.());
+            });
+          });
+        },
+      };
+      const { stats, dispose } = await build(APP, mode, {}, CARBON, [sibling]);
+      try {
+        expect(stats.hasErrors()).toBe(false);
+        expect(seen).toHaveLength(1);
+        const [analysis] = seen;
+        if (!shared) {
+          expect(analysis).toBeUndefined();
+          return;
+        }
+        if (!analysis || "warning" in analysis) throw new Error("no analysis");
+        expect(analysis.usage.isPruned(".bx--btn--tertiary")).toBe(false);
+        expect(analysis.usage.isPruned(".bx--btn--danger")).toBe(true);
+      } finally {
+        dispose();
+      }
+    },
+  );
 
   test("leaves development builds alone", async () => {
     const { code, dispose } = await build(APP, "development");

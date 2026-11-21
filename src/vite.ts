@@ -8,6 +8,7 @@ import {
   type SveltePruneOptions,
   writeOriginalsForTailwind,
 } from "./optimizer";
+import { shareAnalysis } from "./shared-analysis";
 
 /**
  * Vite, Rollup and Rolldown plugin that rewrites each component of
@@ -40,7 +41,7 @@ export function sveltePrune(
   let serving = false;
   const optimizer = createComponentOptimizer(library, options, names);
 
-  return {
+  const plugin: Plugin = {
     name: names.id,
     // Before the Svelte plugin: the first `load` that returns wins, and
     // `transform` must read app modules before a preprocessor changes them.
@@ -128,4 +129,7 @@ export function sveltePrune(
       },
     },
   };
+  // For a sibling plugin's `siblingAnalysis(config.plugins, …)`.
+  shareAnalysis(plugin, () => (serving ? undefined : optimizer.shared));
+  return plugin;
 }

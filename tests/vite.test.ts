@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import type { SveltePruneOptions } from "../src/optimizer";
+import { siblingAnalysis } from "../src/shared-analysis";
 import { sveltePrune } from "../src/vite";
 import { CARBON } from "./helpers/carbon";
 import { createFakeProject } from "./helpers/fake-project";
@@ -675,6 +676,40 @@ describe("svelte-prune/vite", () => {
     }
   });
 
+  test("shares its analysis with sibling plugins", async () => {
+    const { project, plugin } = setUp(
+      `<script>${IMPORT_BUTTON}</script>\n<Button kind="tertiary">Save</Button>`,
+    );
+    try {
+      const plugins = [{ name: "other" }, plugin];
+      const shared = siblingAnalysis(plugins, CARBON.name);
+      expect(shared).toBeDefined();
+      // Not until the build has analyzed.
+      expect(shared?.()).toBeUndefined();
+      await plugin.buildStart.call(context());
+      const analysis = shared?.();
+      if (!analysis || "warning" in analysis) throw new Error("no analysis");
+      expect(analysis.library).toBe(CARBON.name);
+      expect(analysis.files.map(({ file }) => path.basename(file))).toEqual([
+        "App.svelte",
+      ]);
+      // The same call sites the rewrite is for.
+      expect(analysis.usage.isPruned(".bx--btn--tertiary")).toBe(false);
+      expect(analysis.usage.isPruned(".bx--btn--danger")).toBe(true);
+      expect([...analysis.usage.liveComponents]).toContain("Button");
+
+      // Another library's, or no svelte-prune plugin at all.
+      expect(siblingAnalysis(plugins, "other-library")?.()).toBeUndefined();
+      expect(siblingAnalysis([{ name: "other" }], CARBON.name)).toBeUndefined();
+
+      // The dev server shares nothing.
+      plugin.configResolved({ root: project.root, command: "serve" });
+      expect(shared?.()).toBeUndefined();
+    } finally {
+      project.dispose();
+    }
+  });
+
   test("leaves Carbon unchanged with a warning when analysis fails", async () => {
     const project = createFakeProject();
     project.installBrokenCarbon();
@@ -690,6 +725,11 @@ describe("svelte-prune/vite", () => {
       await plugin.buildStart.call(ctx);
       expect(ctx.warn).toHaveBeenCalledTimes(1);
       expect(ctx.warn.mock.calls[0][0]).toMatch(ANALYSIS_FAILED);
+      // A sibling sees the failure, not an analysis.
+      const shared = siblingAnalysis([plugin], CARBON.name)?.();
+      expect(shared && "warning" in shared && shared.warning).toMatch(
+        ANALYSIS_FAILED,
+      );
       plugin.transform(IMPORT_BUTTON, path.join(project.root, "lib", "x.ts"));
       // With nothing rewritten, an unanalyzed importer is harmless.
       await expect(plugin.buildEnd.call(ctx)).resolves.toBeUndefined();
