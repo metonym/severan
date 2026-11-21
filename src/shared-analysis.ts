@@ -7,6 +7,11 @@ export type RenderedUsage = {
   readonly liveComponents: ReadonlySet<string>;
   /** Whether no live component can apply class `cls` (`.x--btn--danger`). */
   isPruned(cls: string): boolean;
+  /**
+   * The report's lines for each call site's prop values, and how many of
+   * `prunedClasses` (the classes pruning removed because of them) there are.
+   */
+  report(prunedClasses: ReadonlySet<string>, root: string): string[];
 };
 
 /**

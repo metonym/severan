@@ -485,7 +485,12 @@ export async function specializeFiles(input: {
     },
     apps: appRewrites.filter((rewrite) => rewrite.edits > 0).length,
     renderable: result.analysis.liveComponents,
-    usage: { liveComponents: result.liveComponents, isPruned: result.isPruned },
+    usage: {
+      liveComponents: result.liveComponents,
+      isPruned: result.isPruned,
+      report: (prunedClasses, root) =>
+        formatPropAwareReport(result, prunedClasses, root),
+    },
     tables: { ...tables, modules: tables.modules.size },
     report: () =>
       formatSpecializeReport(
