@@ -4,9 +4,9 @@
 
 **Features**
 
-- `svelte-prune/internal/analysis` exports `siblingAnalysis(plugins,
-  library)`: given a build's plugins (Vite's resolved `config.plugins`,
-  webpack's `compiler.options.plugins`), it returns a reader of the
+- `svelte-prune/internal/analysis` exports `siblingAnalysis(build,
+  library)`: given a build (Vite's resolved config, a webpack or Rspack
+  compiler, or Rollup's list of plugins), it returns a reader of the
   analysis the `sveltePrune` or `SveltePrunePlugin` there made for
   `library`: what renders (`liveComponents`, `isPruned`) and the `content`
   files it read, or the warning it failed with. A sibling plugin, such as

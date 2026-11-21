@@ -683,6 +683,10 @@ describe("svelte-prune/vite", () => {
     try {
       const plugins = [{ name: "other" }, plugin];
       const shared = siblingAnalysis(plugins, CARBON.name);
+      // By config too, which finds a plugin another one wraps.
+      const config = { root: project.root };
+      plugin.configResolved(config);
+      const byConfig = siblingAnalysis(config, CARBON.name);
       expect(shared).toBeDefined();
       // Not until the build has analyzed.
       expect(shared?.()).toBeUndefined();
@@ -690,6 +694,7 @@ describe("svelte-prune/vite", () => {
       const analysis = shared?.();
       if (!analysis || "warning" in analysis) throw new Error("no analysis");
       expect(analysis.library).toBe(CARBON.name);
+      expect(byConfig?.()).toBe(analysis);
       expect(analysis.files.map(({ file }) => path.basename(file))).toEqual([
         "App.svelte",
       ]);

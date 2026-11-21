@@ -23,45 +23,50 @@ export type SharedAnalysis =
     }
   | { library: string; warning: string };
 
+type Current = () => SharedAnalysis | undefined;
+
 const KEY = Symbol.for("svelte-prune.analyses");
 
 /**
- * Plugins to their analysis, so far: `undefined` before a build has
- * prepared one (or one that doesn't rewrite, such as the dev server's).
- * On `globalThis`, like the loader's registry: the plugin and its reader
- * may be different copies of this package.
+ * Plugins, and the builds they're in (Vite's resolved config, a webpack
+ * compiler), to their analyses so far: `undefined` before a build has
+ * prepared one, or for one that doesn't rewrite (the dev server). On
+ * `globalThis`, like the loader's registry: the plugin and its reader may
+ * be different copies of this package.
  */
-function registry(): WeakMap<object, () => SharedAnalysis | undefined> {
-  const scope = globalThis as {
-    [KEY]?: WeakMap<object, () => SharedAnalysis | undefined>;
-  };
+function registry(): WeakMap<object, Current[]> {
+  const scope = globalThis as { [KEY]?: WeakMap<object, Current[]> };
   scope[KEY] ??= new WeakMap();
   return scope[KEY];
 }
 
-export function shareAnalysis(
-  plugin: object,
-  current: () => SharedAnalysis | undefined,
-): void {
-  registry().set(plugin, current);
+/** Registers `current` under `key`: a plugin, or the build it's in. */
+export function shareAnalysis(key: object, current: Current): void {
+  const analyses = registry();
+  const found = analyses.get(key) ?? [];
+  if (!found.includes(current)) found.push(current);
+  analyses.set(key, found);
 }
 
 /**
- * The analysis of the plugin in `plugins` (Vite's resolved `config.plugins`,
- * webpack's `compiler.options.plugins`) that rewrites `library`, read when
- * called: from `generateBundle` or `processAssets` on, it's this build's.
- * `undefined` when no such plugin is there.
+ * The analysis that the svelte-prune plugin rewriting `library` in `build`
+ * made, read when called: from `generateBundle` or `processAssets` on,
+ * it's that build's. `build` is Vite's resolved config (in
+ * `configResolved`), a webpack or Rspack compiler (in `apply`), or a list
+ * of plugins (Rollup's, Rolldown's). The config or compiler finds a plugin
+ * another plugin wraps. `undefined` when there's no such plugin.
  */
 export function siblingAnalysis(
-  plugins: Iterable<unknown>,
+  build: object,
   library: string,
-): (() => SharedAnalysis | undefined) | undefined {
+): Current | undefined {
   const analyses = registry();
-  const found: Array<() => SharedAnalysis | undefined> = [];
-  for (const plugin of plugins) {
-    if (typeof plugin !== "object" || plugin === null) continue;
-    const current = analyses.get(plugin);
-    if (current) found.push(current);
+  const found = [...(analyses.get(build) ?? [])];
+  if (Symbol.iterator in build) {
+    for (const plugin of build as Iterable<unknown>) {
+      if (typeof plugin !== "object" || plugin === null) continue;
+      found.push(...(analyses.get(plugin) ?? []));
+    }
   }
   if (found.length === 0) return undefined;
   return () => {

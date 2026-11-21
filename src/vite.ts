@@ -41,6 +41,7 @@ export function sveltePrune(
   let serving = false;
   const optimizer = createComponentOptimizer(library, options, names);
 
+  const current = () => (serving ? undefined : optimizer.shared);
   const plugin: Plugin = {
     name: names.id,
     // Before the Svelte plugin: the first `load` that returns wins, and
@@ -51,6 +52,8 @@ export function sveltePrune(
     // ignore `apply`.
     ...(library.tailwind !== true && { apply: "build" as const }),
     configResolved(config) {
+      // A wrapped plugin isn't in `config.plugins`, but its config is.
+      shareAnalysis(config, current);
       root = config.root;
       serving = config.command === "serve";
     },
@@ -129,7 +132,8 @@ export function sveltePrune(
       },
     },
   };
-  // For a sibling plugin's `siblingAnalysis(config.plugins, …)`.
-  shareAnalysis(plugin, () => (serving ? undefined : optimizer.shared));
+  // For a sibling plugin's `siblingAnalysis(…)`: Rollup and Rolldown have
+  // no config to find it by, only their list of plugins.
+  shareAnalysis(plugin, current);
   return plugin;
 }

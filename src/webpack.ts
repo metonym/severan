@@ -158,7 +158,7 @@ export class SveltePrunePlugin {
     // would leave rewritten components stale.
     if (!isProduction(compiler)) {
       // Nothing to share: a sibling reads no analysis in development.
-      shareAnalysis(this, () => undefined);
+      shareAnalysis(compiler, () => undefined);
       if (this.spec.tailwind !== true) return;
       // Nothing is rewritten: Tailwind's `@source` gets the library as it is.
       const write = async () => {
@@ -181,8 +181,9 @@ export class SveltePrunePlugin {
     const name = this.names.plugin;
     const library = libraryPaths(spec);
     const optimizer = createComponentOptimizer(spec, this.options, this.names);
-    // For a sibling plugin's `siblingAnalysis(compiler.options.plugins, …)`.
-    shareAnalysis(this, () => optimizer.shared);
+    // For a sibling plugin's `siblingAnalysis(compiler, …)`: by compiler,
+    // since another plugin may wrap this one.
+    shareAnalysis(compiler, () => optimizer.shared);
     // Unique across copies of this package, which share the registry.
     const id = randomUUID();
     optimizerRegistry().set(id, optimizer);

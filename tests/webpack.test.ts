@@ -36,6 +36,8 @@ async function build(
   resolve: webpack.Configuration["resolve"] = {},
   library: LibrarySpec = CARBON,
   siblings: webpack.WebpackPluginInstance[] = [],
+  /** Hands it to webpack inside another plugin, as carbon-preprocess-svelte does. */
+  wrapped = false,
 ) {
   const project = createFakeProject();
   if (library === CARBON) project.linkCarbon();
@@ -44,6 +46,8 @@ async function build(
     mkdirSync(path.dirname(path.join(project.root, file)), { recursive: true });
     writeFileSync(path.join(project.root, file), code);
   }
+  const wrap = (plugin: SveltePrunePlugin): webpack.WebpackPluginInstance =>
+    wrapped ? { apply: (compiler) => plugin.apply(compiler) } : plugin;
   const compiler = webpack({
     mode,
     context: project.root,
@@ -53,7 +57,10 @@ async function build(
     resolve,
     optimization: { minimize: false },
     devtool: false,
-    plugins: [new SveltePrunePlugin(library, { silent: true }), ...siblings],
+    plugins: [
+      wrap(new SveltePrunePlugin(library, { silent: true })),
+      ...siblings,
+    ],
     infrastructureLogging: { level: "none" },
   });
   const stats = await new Promise<webpack.Stats>((resolve, reject) =>
@@ -176,19 +183,17 @@ describe("SveltePrunePlugin", () => {
   });
 
   test.each([
-    ["production", true],
-    ["development", false],
+    ["production", true, false],
+    ["development", false, false],
+    ["production", true, true],
   ] as const)(
-    "shares its %s analysis with sibling plugins: %p",
-    async (mode, shared) => {
+    "shares its %s analysis with sibling plugins: %p (wrapped: %p)",
+    async (mode, shared, wrapped) => {
       // Reads it where a CSS plugin would: once assets are processed.
       const seen: Array<SharedAnalysis | undefined> = [];
       const sibling: webpack.WebpackPluginInstance = {
         apply(compiler) {
-          const current = siblingAnalysis(
-            compiler.options.plugins,
-            CARBON.name,
-          );
+          const current = siblingAnalysis(compiler, CARBON.name);
           compiler.hooks.thisCompilation.tap("sibling", (compilation) => {
             compilation.hooks.processAssets.tap("sibling", () => {
               seen.push(current?.());
@@ -196,7 +201,14 @@ describe("SveltePrunePlugin", () => {
           });
         },
       };
-      const { stats, dispose } = await build(APP, mode, {}, CARBON, [sibling]);
+      const { stats, dispose } = await build(
+        APP,
+        mode,
+        {},
+        CARBON,
+        [sibling],
+        wrapped,
+      );
       try {
         expect(stats.hasErrors()).toBe(false);
         expect(seen).toHaveLength(1);
