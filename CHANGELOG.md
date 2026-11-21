@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+**Features**
+
+- `svelte-prune/internal/analysis` exports `siblingAnalysis(build,
+  library)`: given a build (Vite's resolved config, a webpack or Rspack
+  compiler, or Rollup's list of plugins), it returns a reader of the
+  analysis the `sveltePrune` or `SveltePrunePlugin` there made for
+  `library`: what renders (`liveComponents`, `isPruned`) and the `content`
+  files it read, or the warning it failed with. A sibling plugin, such as
+  carbon-preprocess-svelte's CSS optimizer, prunes from the same reading
+  of the call sites as the rewrite instead of collecting its own.
+  `specializeFiles` returns it as `usage`.
+
 ## 0.10.1
 
 **Fixes**

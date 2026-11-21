@@ -14,6 +14,7 @@ import {
   libraryPaths,
 } from "./library-paths";
 import { installedMajor, packageSignature, requirePackageDir } from "./package";
+import type { SharedAnalysis } from "./shared-analysis";
 import { importKey, RE_EXT_STYLESHEET, realpath, stripQuery } from "./util";
 
 export type SveltePruneOptions = {
@@ -187,6 +188,7 @@ function newBuild(root: string) {
     readImport: (() => true) as SpecializedComponents["readImport"],
     realpaths: new Map<string, string | undefined>(),
     pruneStyles: undefined as SpecializedComponents["pruneStyles"],
+    shared: undefined as SharedAnalysis | undefined,
   };
 }
 
@@ -273,6 +275,10 @@ export function createComponentOptimizer(
         };
       }
       const { result } = last;
+      build.shared =
+        "warning" in result
+          ? { library: spec.name, warning: result.warning }
+          : { library: spec.name, usage: result.usage, files };
       if (usesTailwind(spec, root)) {
         // A linked library's edits change its signature; one that can't be
         // resolved is written (and warned about) every build.
@@ -313,6 +319,11 @@ export function createComponentOptimizer(
           : `rewrote ${result.sources.size - result.apps - result.tables.modules} ${label} components${result.apps > 0 ? ` and ${result.apps} of the app's own` : ""}${result.tables.modules > 0 ? ` and ${result.tables.pruned + result.tables.emptied} tailwind-variants tables` : ""} for this app (${result.edits} edits)`,
         report: options?.report ? result.report() : undefined,
       };
+    },
+
+    /** This build's analysis, once `prepare` has made it. */
+    get shared(): SharedAnalysis | undefined {
+      return build.shared;
     },
 
     get analyzed(): ReadonlySet<string> {

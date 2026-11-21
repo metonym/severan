@@ -27,6 +27,7 @@ import {
   type SafelistEntry,
   type StylePruner,
 } from "./styles";
+import type { RenderedUsage } from "./shared-analysis";
 import type { CallSite } from "./usage";
 import { errorMessage, isSvelteFile, realpath, stripQuery } from "./util";
 import { formatValue, UNKNOWN } from "./values";
@@ -355,6 +356,8 @@ export type SpecializedComponents = {
    * a class the library's stylesheets define and nothing can render.
    */
   pruneStyles?: StylePruner;
+  /** What the analysis the rewrite is for says renders. */
+  usage: RenderedUsage;
 };
 
 /** Rewrites each library component `files` render, and each app component whose every call site they hold. */
@@ -482,6 +485,12 @@ export async function specializeFiles(input: {
     },
     apps: appRewrites.filter((rewrite) => rewrite.edits > 0).length,
     renderable: result.analysis.liveComponents,
+    usage: {
+      liveComponents: result.liveComponents,
+      isPruned: result.isPruned,
+      report: (prunedClasses, root) =>
+        formatPropAwareReport(result, prunedClasses, root),
+    },
     tables: { ...tables, modules: tables.modules.size },
     report: () =>
       formatSpecializeReport(
