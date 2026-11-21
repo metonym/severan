@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.1
+
+**Fixes**
+
+- The bundled parser is svelte-ast 0.12.0, sveast's new name, and the
+  declarations of `svelte-prune/internal` and
+  `svelte-prune/internal/analysis` import its types from `svelte-ast/*`
+  instead of `sveast/*`.
+
 ## 0.10.0
 
 **Breaking changes**
